@@ -573,6 +573,11 @@ body.viewer-mode .viewer-badge{display:inline-flex}
   </div>
 </div>
 <div id="dashboardScreen">
+<div id="dashLoadingOverlay" style="display:none;position:fixed;inset:0;z-index:500;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px">
+  <div style="width:42px;height:42px;border:3px solid var(--bd);border-top-color:var(--gold);border-radius:50%;animation:dashSpin 0.8s linear infinite"></div>
+  <div style="color:var(--t2);font-size:13px;font-weight:600;letter-spacing:.3px">Memuat data...</div>
+</div>
+<style>@keyframes dashSpin{to{transform:rotate(360deg)}}</style>
 <div class="app">
 
 <div class="header">
@@ -890,8 +895,8 @@ let hccSort={col:null, dir:'asc'}; // sort state for HCC table
 // ── ROLE / ACCESS CONTROL ──
 // 'admin'  = akses penuh (tambah/edit/hapus)
 // 'viewer' = hanya lihat & cari (read-only), dari user lapangan
-const userRole = sessionStorage.getItem('adw_role') || 'admin'; // default admin jika dibuka tanpa login (mis. saat development)
-const isViewer = userRole === 'viewer';
+let userRole = localStorage.getItem('adw_role') || 'admin';
+let isViewer = userRole === 'viewer';
 
 function guardEdit() {
   if (isViewer) { notify('Akun lapangan tidak memiliki akses untuk mengubah data', 'err'); return true; }
@@ -2620,15 +2625,15 @@ function closeSidebarOnMobile() {
 function showDashboard() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('dashboardScreen').style.display = 'block';
-  document.getElementById('dashboardScreen').style.opacity = '0.4';
-  init().finally(() => { document.getElementById('dashboardScreen').style.opacity = '1'; });
+  document.getElementById('dashLoadingOverlay').style.display = 'flex';
+  init().finally(() => { document.getElementById('dashLoadingOverlay').style.display = 'none'; });
 }
 
 function handleLogout() {
   if (savingCount > 0) { notify('Tunggu sebentar, data sedang disimpan ke server...', 'err'); return; }
   showCfm('Logout?', 'Anda akan keluar dari sesi ini dan kembali ke halaman login.', () => {
-    sessionStorage.removeItem('adw_role');
-    sessionStorage.removeItem('adw_user');
+    localStorage.removeItem('adw_role');
+    localStorage.removeItem('adw_user');
     document.body.classList.remove('viewer-mode');
     document.getElementById('username').value = '';
     document.getElementById('password').value = '';
@@ -2680,11 +2685,24 @@ function handleLogout() {
       }
 
       // Simpan sesi role agar halaman dashboard bisa menyesuaikan hak akses
-      sessionStorage.setItem('adw_role', matched.role);
-      sessionStorage.setItem('adw_user', user);
+      localStorage.setItem('adw_role', matched.role);
+      localStorage.setItem('adw_user', user);
+      userRole = matched.role;
+      isViewer = userRole === 'viewer';
 
       showDashboard();
     }
+
+    // ── AUTO-LOGIN: cek sesi tersimpan saat halaman pertama dibuka/refresh ──
+    (function checkExistingSession() {
+      const savedRole = localStorage.getItem('adw_role');
+      const savedUser = localStorage.getItem('adw_user');
+      if (savedRole && savedUser) {
+        userRole = savedRole;
+        isViewer = userRole === 'viewer';
+        showDashboard();
+      }
+    })();
   
 </script>
 </div><!-- /dashboardScreen -->
