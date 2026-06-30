@@ -1607,10 +1607,10 @@ function renderHccTab(code, q='', cat='', st='') {
         <td>${fmtDate(r.dt||r.dateInstalled)}</td>
         <td>${fmtN(hi)}</td>
         <td style="text-align:center">${isRun?`<span style="color:var(--green);font-weight:600">${hmUpd}</span>`:hmUpd}</td>
-        <td>${ltDisplay}</td>
+        <td>${ltDisplay}${isAutoClosed?' <span class="chip" style="background:rgba(148,163,184,.18);color:#94a3b8;font-size:9px;padding:1px 6px">Selesai</span>':''}</td>
         <td style="color:var(--t1);font-weight:700;text-align:center">${targetLt}</td>
         <td style="text-align:center">${excChip}</td>
-        <td style="font-size:10px">${isAutoClosed?'<span class="chip" style="background:rgba(148,163,184,.18);color:#94a3b8;font-size:9px">Selesai</span>':(r.st||r.status||'')}</td>
+        <td style="font-size:10px">${r.st||r.status||''}</td>
         <td title="${r.rm||r.remark||''}">${r.rm||r.remark||''}</td>
         <td><div class="tbl-acts">
           <button class="btn btn-outline btn-xs edit-action" data-edit-hcc="${r.id||''}">Edit</button>
