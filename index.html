@@ -1299,7 +1299,8 @@ function renderDetail(code) {
   const curHm   = hmMap[code]?.hm;
   const hmDate  = hmMap[code]?.date||'';
   const uHcc    = hcc.filter(r=>(r.u||r.unitCode)===code);
-  const running = uHcc.filter(r=>(r.hr??r.hmRemove)==='Running');
+  const hccAutoCloseMap = getHccAutoCloseMap(code);
+  const running = uHcc.filter(r=>isHccRunning(r, hccAutoCloseMap));
   const majorRun= running.filter(r=>{const c=r.cat||r.compCategory||'';return c==='MAJOR'||c==='MAYOR';});
   const uProker = proker.filter(p=>p.u===code);
 
@@ -1522,13 +1523,15 @@ function hccSortBy(col) {
 }
 
 function renderHccTab(code, q='', cat='', st='') {
+  const autoCloseMap = getHccAutoCloseMap(code);
+
   let rows = hcc.filter(r => {
     if ((r.u||r.unitCode)!==code) return false;
     const c  = r.cat||r.compCategory||'';
-    const hr = r.hr??r.hmRemove;
+    const effectivelyRunning = isHccRunning(r, autoCloseMap);
     if (cat && c!==cat) return false;
-    if (st==='Running' && hr!=='Running') return false;
-    if (st==='Done'    && hr==='Running') return false;
+    if (st==='Running' && !effectivelyRunning) return false;
+    if (st==='Done'    && effectivelyRunning) return false;
     if (q && !(r.desc||r.compDesc||'').toLowerCase().includes(q.toLowerCase())) return false;
     return true;
   });
@@ -1573,16 +1576,20 @@ function renderHccTab(code, q='', cat='', st='') {
       <th>HM Install</th><th>HM Update</th><th>Lifetime</th><th>Target LT</th><th>Exc</th><th>Sts</th><th>Remark</th><th>Aksi</th>
     </tr></thead>
     <tbody>${rows.map(r => {
-      const isRun = (r.hr??r.hmRemove)==='Running';
+      const ac = autoCloseMap.get(r) || { isClosed: false, closedAtHm: null };
+      const isRun = !ac.isClosed && (r.hr??r.hmRemove)==='Running';
+      const isAutoClosed = ac.isClosed;
       const hi = r.hi??r.hmInstall;
       const hr = r.hr??r.hmRemove;
       const lt = r.lt??r.lifeTime;
       const age = isRun&&curHm&&hi!=null ? Math.round(curHm-hi) : null;
       const isMaj = (r.cat||r.compCategory||'')==='MAJOR';
-      // HM Update: if Running, show current HM live; if Done, show HM Remove
-      const hmUpd = isRun ? (curHm ? fmtN(curHm) : '-') : fmtN(hr);
-      // Lifetime: if running show age (current), else show actual lifetime
-      const ltDisplay = age!=null ? `<b style="color:var(--gold)">${age.toLocaleString()} h↑</b>` : fmtN(lt);
+      // HM Update: auto-closed → HM saat digantikan; Running → HM live unit; selesai manual → nilai tersimpan
+      const hmUpd = isAutoClosed ? fmtN(ac.closedAtHm) : (isRun ? (curHm ? fmtN(curHm) : '-') : fmtN(hr));
+      // Lifetime: auto-closed → selisih hmInstall ke closedAtHm; running → age live; lainnya → nilai tersimpan
+      const ltDisplay = isAutoClosed && hi!=null && ac.closedAtHm!=null
+        ? fmtN(Math.max(0, ac.closedAtHm - hi))
+        : (age!=null ? `<b style="color:var(--gold)">${age.toLocaleString()} h↑</b>` : fmtN(lt));
       // Target LT: from direct field on record, fallback to proker lookup
       const targetLt = r.targetLt != null ? fmtN(r.targetLt) : (() => {
         const pk = proker.find(p=>p.u===(r.u||r.unitCode) && p.k && (r.desc||r.compDesc||'').toLowerCase().includes((p.k||'').toLowerCase().slice(0,10)));
@@ -1593,7 +1600,7 @@ function renderHccTab(code, q='', cat='', st='') {
       const excChip = exc==='BUS' ? `<span class="chip" style="background:rgba(59,130,246,.18);color:#60a5fa;font-size:9px">BUS</span>`
                     : exc==='BS'  ? `<span class="chip" style="background:rgba(168,85,247,.18);color:#c084fc;font-size:9px">BS</span>`
                     : '-';
-      return `<tr>
+      return `<tr${isAutoClosed?' style="opacity:.6"':''}>
         <td><span class="chip ${isMaj?'ch-major':'ch-minor'}">${r.cat||r.compCategory||''}</span></td>
         <td title="${r.desc||r.compDesc||''}">${r.desc||r.compDesc||''}</td>
         <td style="text-align:center">${fmtPos(r)}</td>
@@ -1603,7 +1610,7 @@ function renderHccTab(code, q='', cat='', st='') {
         <td>${ltDisplay}</td>
         <td style="color:var(--t1);font-weight:700;text-align:center">${targetLt}</td>
         <td style="text-align:center">${excChip}</td>
-        <td style="font-size:10px">${r.st||r.status||''}</td>
+        <td style="font-size:10px">${isAutoClosed?'<span class="chip" style="background:rgba(148,163,184,.18);color:#94a3b8;font-size:9px">Selesai</span>':(r.st||r.status||'')}</td>
         <td title="${r.rm||r.remark||''}">${r.rm||r.remark||''}</td>
         <td><div class="tbl-acts">
           <button class="btn btn-outline btn-xs edit-action" data-edit-hcc="${r.id||''}">Edit</button>
@@ -2261,22 +2268,28 @@ function exportAllData(){
   const wsFleet = XLSX.utils.json_to_sheet(fleetData);
   XLSX.utils.book_append_sheet(wb, wsFleet, 'Fleet');
 
-  // ── SHEET 2: HCC (all units) ──
+  // ── SHEET 2: HCC (all units, auto-close aware) ──
+  const hccAutoCloseByUnit = {}; // cache per unit code
   const hccData = hcc.map(r=>{
     const code  = r.u||r.unitCode||'';
     const u      = fleet.find(x=>x.unitCode===code)||{};
     const curHm  = hmMap[code]?.hm;
     const hi     = r.hi??r.hmInstall;
-    const isRun  = (r.hr??r.hmRemove)==='Running';
-    const lt     = isRun && curHm && hi!=null ? Math.round(curHm-hi) : (r.lt??r.lifeTime);
+    if (!hccAutoCloseByUnit[code]) hccAutoCloseByUnit[code] = getHccAutoCloseMap(code);
+    const ac     = hccAutoCloseByUnit[code].get(r) || { isClosed:false, closedAtHm:null };
+    const isRun  = !ac.isClosed && (r.hr??r.hmRemove)==='Running';
+    const lt     = ac.isClosed && hi!=null && ac.closedAtHm!=null ? Math.max(0, ac.closedAtHm-hi)
+                 : (isRun && curHm && hi!=null ? Math.round(curHm-hi) : (r.lt??r.lifeTime));
     const tgt    = r.targetLt;
     const sisa   = tgt!=null && lt!=null ? Math.round(tgt-lt) : null;
     let status = '-';
-    if (tgt!=null && lt!=null) status = lt>tgt ? 'Overdue' : sisa<750 ? 'Caution' : 'Normal';
+    if (ac.isClosed) status = 'Selesai';
+    else if (tgt!=null && lt!=null) status = lt>tgt ? 'Overdue' : sisa<750 ? 'Caution' : 'Normal';
+    const hmUpdValue = ac.isClosed ? ac.closedAtHm : (isRun?curHm:(r.hr??r.hmRemove));
     return {
       'Unit':code,'Model':u.modelGroup||u.model||'','Kategori':r.cat||r.compCategory||'',
       'Deskripsi':r.desc||r.compDesc||'','Posisi':fmtPos(r)||'-','Tgl Install':fmtDate(r.dt||r.dateInstalled),
-      'HM Install':hi,'HM Update':isRun?curHm:(r.hr??r.hmRemove),'Lifetime':lt,
+      'HM Install':hi,'HM Update':hmUpdValue,'Lifetime':lt,
       'Target LT':tgt,'Sisa (h)':sisa,'Exc':r.exc||'','Status':status,'Sts':r.st||r.status||'',
       'Remark':r.rm||r.remark||''
     };
@@ -2349,6 +2362,34 @@ function fmtPos(r){
   const parts=[r.posFR,r.posRH,r.posNo].filter(x=>x&&x!=='-'&&x!=='');
   return parts.length?parts.join('/'):'-';
 }
+// ── HCC AUTO-CLOSE HELPER ──
+// Mengembalikan Map<record, {isClosed, closedAtHm}> untuk SEMUA record HCC milik 1 unit.
+// Record dianggap "closed" (sudah diganti) jika ada record lain dengan deskripsi+posisi
+// sama yang hmInstall-nya lebih baru (sama persis logika auto-close di Proker).
+function getHccAutoCloseMap(code) {
+  const groupKey = r => (r.u||r.unitCode||'') + '||' + (r.desc||r.compDesc||'').trim().toLowerCase() + '||' + (fmtPos(r)||'-');
+  const groups = {};
+  hcc.forEach(r => {
+    if ((r.u||r.unitCode) !== code) return;
+    const key = groupKey(r);
+    (groups[key] = groups[key] || []).push(r);
+  });
+  const map = new Map();
+  Object.values(groups).forEach(group => {
+    const sorted = [...group].sort((a,b) => (a.hi??a.hmInstall??0) - (b.hi??b.hmInstall??0));
+    sorted.forEach((r, i) => {
+      const next = sorted[i+1];
+      if (next) map.set(r, { isClosed: true, closedAtHm: next.hi??next.hmInstall??null });
+      else map.set(r, { isClosed: false, closedAtHm: null });
+    });
+  });
+  return map;
+}
+function isHccRunning(r, autoCloseMap) {
+  const ac = autoCloseMap.get(r);
+  if (ac) return !ac.isClosed && (r.hr??r.hmRemove)==='Running';
+  return (r.hr??r.hmRemove)==='Running';
+}
 function notify(msg,type='ok'){
   const el=document.createElement('div');el.className=`nitem ${type}`;
   el.innerHTML=`<span>${type==='ok'?'✓':'✕'}</span> ${msg}`;
@@ -2416,6 +2457,7 @@ function renderGlobalData() {
   };
 
   if (gdTab === 'hcc') {
+    const hccAutoCloseByUnitGd = {};
     let allRows = hcc.filter(r => {
       const code = r.u||r.unitCode||'';
       if (!unitSet.has(code)) return false;
@@ -2425,17 +2467,21 @@ function renderGlobalData() {
       const code  = r.u||r.unitCode||'';
       const curHm = hmMap[code]?.hm;
       const hi    = r.hi??r.hmInstall;
-      const isRun = (r.hr??r.hmRemove)==='Running';
-      const lt    = isRun && curHm && hi!=null ? curHm-hi : (r.lt??r.lifeTime);
+      if (!hccAutoCloseByUnitGd[code]) hccAutoCloseByUnitGd[code] = getHccAutoCloseMap(code);
+      const ac    = hccAutoCloseByUnitGd[code].get(r) || { isClosed:false, closedAtHm:null };
+      const isRun = !ac.isClosed && (r.hr??r.hmRemove)==='Running';
+      const lt    = ac.isClosed && hi!=null && ac.closedAtHm!=null ? Math.max(0, ac.closedAtHm-hi)
+                  : (isRun && curHm && hi!=null ? curHm-hi : (r.lt??r.lifeTime));
       const tgt   = r.targetLt;
       const sisa  = tgt!=null && lt!=null ? tgt-lt : null;
       let st = null;
-      if (tgt!=null && lt!=null) st = lt>tgt ? 'overdue' : sisa<750 ? 'caution' : 'normal';
-      return {...r, _code:code, _lt:lt, _tgt:tgt, _sisa:sisa, _st:st, _isRun:isRun, _curHm:curHm, _hi:hi};
+      if (ac.isClosed) st = 'done';
+      else if (tgt!=null && lt!=null) st = lt>tgt ? 'overdue' : sisa<750 ? 'caution' : 'normal';
+      return {...r, _code:code, _lt:lt, _tgt:tgt, _sisa:sisa, _st:st, _isRun:isRun, _curHm:curHm, _hi:hi, _isClosed:ac.isClosed, _closedAtHm:ac.closedAtHm};
     });
 
     // Count all statuses (before status filter)
-    const counts = {overdue:0,caution:0,normal:0,none:0};
+    const counts = {overdue:0,caution:0,normal:0,done:0,none:0};
     allRows.forEach(r => { if(r._st) counts[r._st]++; else counts.none++; });
 
     // Apply status filter
