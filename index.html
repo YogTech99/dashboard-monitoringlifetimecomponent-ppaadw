@@ -946,6 +946,7 @@ function hccToRow(r) {
   };
 }
 function rowToHcc(row, idx, code) {
+  const safeNum = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
   const hr = row['HM Update'];
   return {
     id: (code || 'unit') + '_' + idx + '_' + Math.random().toString(36).slice(2),
@@ -954,12 +955,12 @@ function rowToHcc(row, idx, code) {
     desc: row['Deskripsi'] || '', compDesc: row['Deskripsi'] || '',
     pos: row['Posisi'] || '-', position: row['Posisi'] || '-',
     dt: row['Tgl Install'] || '', dateInstalled: row['Tgl Install'] || '',
-    hi: row['HM Install'] !== '' ? parseFloat(row['HM Install']) : null,
-    hmInstall: row['HM Install'] !== '' ? parseFloat(row['HM Install']) : null,
-    hr: (hr === '' || hr == null) ? 'Running' : (hr === 'Running' ? 'Running' : parseFloat(hr)),
-    hmRemove: hr, lt: row['Lifetime'] !== '' ? parseFloat(row['Lifetime']) : null,
-    lifeTime: row['Lifetime'] !== '' ? parseFloat(row['Lifetime']) : null,
-    targetLt: row['Target LT'] !== '' ? parseFloat(row['Target LT']) : null,
+    hi: safeNum(row['HM Install']),
+    hmInstall: safeNum(row['HM Install']),
+    hr: (hr === '' || hr == null || hr === '-') ? 'Running' : (hr === 'Running' ? 'Running' : safeNum(hr) ?? 'Running'),
+    hmRemove: hr, lt: safeNum(row['Lifetime']),
+    lifeTime: safeNum(row['Lifetime']),
+    targetLt: safeNum(row['Target LT']),
     exc: row['Exc'] || '', st: row['Sts'] || row['Status'] || '', status: row['Sts'] || row['Status'] || '',
     v: '', vendor: '', wo: '', woNumber: '', po: '', pn: '',
     rm: row['Remark'] || '', remark: row['Remark'] || ''
@@ -976,16 +977,17 @@ function prokerToRow(p) {
   };
 }
 function rowToProker(row, idx) {
+  const safeNum = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
   return {
     _id: 'pk' + idx + '_' + Math.random().toString(36).slice(2),
     u: row['Unit'] || '', m: row['Model'] || '', k: row['Deskripsi'] || '',
-    hm: row['HM Update'] !== '' ? parseFloat(row['HM Update']) : null,
-    std: row['Std LT'] !== '' ? parseFloat(row['Std LT']) : null,
+    hm: safeNum(row['HM Update']),
+    std: safeNum(row['Std LT']),
     tglInstall: row['Tgl Install'] || '',
-    hmInstall: row['HM Install'] !== '' ? parseFloat(row['HM Install']) : null,
-    lt: row['LT Update'] !== '' ? parseFloat(row['LT Update']) : null,
-    pct: row['% Usage'] !== '' ? parseFloat(row['% Usage']) : null,
-    hrs: row['Hrs Left'] !== '' ? parseFloat(row['Hrs Left']) : null,
+    hmInstall: safeNum(row['HM Install']),
+    lt: safeNum(row['LT Update']),
+    pct: safeNum(row['% Usage']),
+    hrs: safeNum(row['Hrs Left']),
     plan: row['Plan Date'] || null, st: row['Sts'] || '', rem: row['Remarks'] || ''
   };
 }
@@ -2193,9 +2195,17 @@ async function applyHm(){
   document.getElementById('hmResult').style.display='none';
   renderHmBar();renderSavedHm();if(selUnit)renderDetail(selUnit);renderUnitList();
   notify('Menyimpan HM ke server, mohon tunggu...', 'ok');
-  const ok = await save();
-  if (ok) notify('HM berhasil disimpan ke server!', 'ok');
-  // jika gagal, notify('Gagal menyimpan...') sudah dipanggil di dalam save()
+  try {
+    const ok1 = await save();   // kirim fleet (termasuk HM Terkini) + hcc
+    const ok2 = await saveP();  // kirim proker juga supaya semua sync
+    if (ok1 && ok2) {
+      notify('✓ HM berhasil disimpan ke server!', 'ok');
+    } else {
+      notify('⚠ Gagal simpan ke server! Cek koneksi dan coba lagi.', 'err');
+    }
+  } catch(e) {
+    notify('⚠ Error saat simpan: ' + e.message, 'err');
+  }
 }
 function cancelHm(){hmPrev=null;document.getElementById('hmResult').style.display='none';}
 function renderHmBar(){
