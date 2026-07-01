@@ -695,32 +695,80 @@ body.viewer-mode .viewer-badge{display:inline-flex}
       <button class="btn btn-outline btn-sm" onclick="closePage()">← Kembali</button>
       <h2 style="font-size:14px;font-weight:700">Upload HM Harian</h2>
     </div>
-    <div class="sec">
-      <div class="sec-title">Upload File (.xlsx)</div>
-      <div class="upzone" id="uploadZone" onclick="document.getElementById('hmFile').click()" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
-        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:.35;margin-bottom:7px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        <div style="font-size:13px;font-weight:600;margin-bottom:3px">Drag & Drop atau Klik</div>
-        <div style="font-size:11px;color:var(--t2)">Kolom: Unit, HM Stop (contoh: SS6_HM_DATA.xlsx)</div>
-      </div>
-      <input type="file" id="hmFile" accept=".xlsx,.xls" style="display:none" onchange="processHmFile(event)">
+
+    <!-- TAB TOGGLE -->
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <button id="tabUpload" class="btn btn-gold btn-sm" onclick="switchHmTab('upload')">⬆ Upload Excel</button>
+      <button id="tabManual" class="btn btn-outline btn-sm" onclick="switchHmTab('manual')">✏ Input Manual</button>
     </div>
-    <div id="hmResult" style="display:none" class="sec">
-      <div class="sec-title">Preview</div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:10px">
-        <div class="card"><div class="card-lbl">Baris</div><div class="card-val cg" id="hmTot">-</div></div>
-        <div class="card"><div class="card-lbl">Cocok</div><div class="card-val cgr" id="hmMatch">-</div></div>
-        <div class="card"><div class="card-lbl">Tdk Cocok</div><div class="card-val" id="hmNoMatch">-</div></div>
-        <div class="card"><div class="card-lbl">Tanggal</div><div class="card-val cb" style="font-size:11px;margin-top:4px" id="hmDate2">-</div></div>
+
+    <!-- UPLOAD SECTION -->
+    <div id="hmUploadSection">
+      <div class="sec">
+        <div class="sec-title">Upload File (.xlsx)</div>
+        <div class="upzone" id="uploadZone" onclick="document.getElementById('hmFile').click()" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:.35;margin-bottom:7px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <div style="font-size:13px;font-weight:600;margin-bottom:3px">Drag & Drop atau Klik</div>
+          <div style="font-size:11px;color:var(--t2)">Kolom: Unit, HM Stop (contoh: SS6_HM_DATA.xlsx)</div>
+        </div>
+        <input type="file" id="hmFile" accept=".xlsx,.xls" style="display:none" onchange="processHmFile(event)">
       </div>
-      <div class="tw" style="max-height:200px;overflow:auto">
-        <table style="table-layout:auto"><thead><tr><th>Unit</th><th>HM Stop</th><th>Tanggal</th><th>Shift</th><th>Status</th></tr></thead>
-        <tbody id="hmPreviewBody"></tbody></table>
-      </div>
-      <div style="display:flex;gap:7px;margin-top:9px">
-        <button class="btn btn-gold btn-sm" onclick="applyHm()">✓ Terapkan</button>
-        <button class="btn btn-outline btn-sm" onclick="cancelHm()">Batal</button>
+      <div id="hmResult" style="display:none" class="sec">
+        <div class="sec-title">Preview</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:10px">
+          <div class="card"><div class="card-lbl">Baris</div><div class="card-val cg" id="hmTot">-</div></div>
+          <div class="card"><div class="card-lbl">Cocok</div><div class="card-val cgr" id="hmMatch">-</div></div>
+          <div class="card"><div class="card-lbl">Tdk Cocok</div><div class="card-val" id="hmNoMatch">-</div></div>
+          <div class="card"><div class="card-lbl">Tanggal</div><div class="card-val cb" style="font-size:11px;margin-top:4px" id="hmDate2">-</div></div>
+        </div>
+        <div class="tw" style="max-height:200px;overflow:auto">
+          <table style="table-layout:auto"><thead><tr><th>Unit</th><th>HM Stop</th><th>Tanggal</th><th>Shift</th><th>Status</th></tr></thead>
+          <tbody id="hmPreviewBody"></tbody></table>
+        </div>
+        <div style="display:flex;gap:7px;margin-top:9px">
+          <button class="btn btn-gold btn-sm" onclick="applyHm()">✓ Terapkan</button>
+          <button class="btn btn-outline btn-sm" onclick="cancelHm()">Batal</button>
+        </div>
       </div>
     </div>
+
+    <!-- INPUT MANUAL SECTION -->
+    <div id="hmManualSection" style="display:none">
+      <div class="sec">
+        <div class="sec-title">Input HM Manual Per Unit</div>
+        <div style="display:grid;grid-template-columns:1fr 120px 140px auto;gap:8px;align-items:end;margin-bottom:10px">
+          <div>
+            <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Unit Code</label>
+            <input id="manualUnit" list="manualUnitList" placeholder="Cari unit..." style="width:100%;background:var(--s2);border:1px solid var(--bd);color:var(--t1);padding:7px 10px;border-radius:6px;font-size:12px">
+            <datalist id="manualUnitList"></datalist>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">HM Terkini</label>
+            <input id="manualHm" type="number" step="0.1" placeholder="0.0" style="width:100%;background:var(--s2);border:1px solid var(--bd);color:var(--t1);padding:7px 10px;border-radius:6px;font-size:12px">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Tanggal</label>
+            <input id="manualDate" type="date" style="width:100%;background:var(--s2);border:1px solid var(--bd);color:var(--t1);padding:7px 10px;border-radius:6px;font-size:12px">
+          </div>
+          <div>
+            <button class="btn btn-gold btn-sm" onclick="addManualHm()" style="white-space:nowrap">+ Tambah</button>
+          </div>
+        </div>
+        <div id="manualHmList" style="display:none">
+          <div class="tw" style="max-height:220px;overflow:auto;margin-bottom:10px">
+            <table style="table-layout:auto">
+              <thead><tr><th>Unit</th><th>HM</th><th>Tanggal</th><th>Aksi</th></tr></thead>
+              <tbody id="manualHmBody"></tbody>
+            </table>
+          </div>
+          <div style="display:flex;gap:7px">
+            <button class="btn btn-gold btn-sm" onclick="applyManualHm()">✓ Terapkan & Simpan</button>
+            <button class="btn btn-outline btn-sm" onclick="clearManualHm()">Bersihkan</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="sec">
       <div class="sec-title">HM Tersimpan <span class="sec-cnt" id="hmSavedCount">0</span></div>
       <div id="hmSavedTable"><div class="empty"><p>Belum ada data HM</p></div></div>
@@ -2266,6 +2314,104 @@ async function applyHm(){
   }
 }
 function cancelHm(){hmPrev=null;document.getElementById('hmResult').style.display='none';}
+
+// ── HM TAB SWITCH ──
+function switchHmTab(tab) {
+  const isUpload = tab === 'upload';
+  document.getElementById('hmUploadSection').style.display = isUpload ? 'block' : 'none';
+  document.getElementById('hmManualSection').style.display = isUpload ? 'none' : 'block';
+  document.getElementById('tabUpload').className = isUpload ? 'btn btn-gold btn-sm' : 'btn btn-outline btn-sm';
+  document.getElementById('tabManual').className = isUpload ? 'btn btn-outline btn-sm' : 'btn btn-gold btn-sm';
+  // Populate unit datalist
+  if (!isUpload) {
+    const dl = document.getElementById('manualUnitList');
+    dl.innerHTML = fleet.map(u => `<option value="${u.unitCode}">${u.unitCode} — ${u.modelGroup||u.model||''}</option>`).join('');
+    // Set default date ke hari ini
+    const today = new Date().toISOString().split('T')[0];
+    if (!document.getElementById('manualDate').value) {
+      document.getElementById('manualDate').value = today;
+    }
+  }
+}
+
+// ── INPUT MANUAL HM ──
+let manualHmQueue = []; // antrian unit yang mau di-update
+
+function addManualHm() {
+  const unitEl = document.getElementById('manualUnit');
+  const hmEl   = document.getElementById('manualHm');
+  const dateEl = document.getElementById('manualDate');
+  const unit   = unitEl.value.trim().toUpperCase();
+  const hm     = parseFloat(hmEl.value);
+  const date   = dateEl.value; // format YYYY-MM-DD dari input type=date
+
+  if (!unit) { notify('Isi Unit Code dulu', 'err'); return; }
+  if (isNaN(hm) || hm <= 0) { notify('Isi HM yang valid', 'err'); return; }
+  if (!date) { notify('Isi Tanggal dulu', 'err'); return; }
+
+  // Cek apakah unit ada di fleet
+  const found = fleet.find(u => u.unitCode === unit || u.unitCode === unitEl.value.trim());
+  if (!found) { notify(`Unit "${unit}" tidak ditemukan di fleet`, 'err'); return; }
+
+  // Update atau tambah ke queue
+  const existing = manualHmQueue.findIndex(q => q.unit === found.unitCode);
+  if (existing >= 0) manualHmQueue[existing] = { unit: found.unitCode, hm, date };
+  else manualHmQueue.push({ unit: found.unitCode, hm, date });
+
+  // Reset input unit & HM, tapi pertahankan tanggal
+  unitEl.value = '';
+  hmEl.value = '';
+
+  renderManualHmList();
+}
+
+function renderManualHmList() {
+  const listEl = document.getElementById('manualHmList');
+  const bodyEl = document.getElementById('manualHmBody');
+  if (!manualHmQueue.length) { listEl.style.display = 'none'; return; }
+  listEl.style.display = 'block';
+  bodyEl.innerHTML = manualHmQueue.map((q, i) => `
+    <tr>
+      <td><b>${q.unit}</b></td>
+      <td style="color:var(--gold);font-weight:600">${fmtN(q.hm)}</td>
+      <td>${fmtDate(q.date)}</td>
+      <td><button class="btn btn-red btn-xs" onclick="removeManualHm(${i})">✕</button></td>
+    </tr>`).join('');
+}
+
+function removeManualHm(idx) {
+  manualHmQueue.splice(idx, 1);
+  renderManualHmList();
+}
+
+function clearManualHm() {
+  manualHmQueue = [];
+  renderManualHmList();
+}
+
+async function applyManualHm() {
+  if (!manualHmQueue.length) { notify('Belum ada data HM yang diinput', 'err'); return; }
+  // Terapkan ke hmMap
+  manualHmQueue.forEach(q => {
+    const existing = hmMap[q.unit];
+    if (!existing || q.hm > existing.hm) {
+      hmMap[q.unit] = { hm: q.hm, date: q.date };
+    }
+  });
+  manualHmQueue = [];
+  renderManualHmList();
+  renderHmBar(); renderSavedHm(); if(selUnit) renderDetail(selUnit); renderUnitList();
+  try { localStorage.setItem('adw-hm-cache', JSON.stringify(hmMap)); } catch(e){}
+  notify('Menyimpan HM ke server, mohon tunggu...', 'ok');
+  try {
+    const ok1 = await save();
+    const ok2 = await saveP();
+    if (ok1 && ok2) notify('✓ HM manual berhasil disimpan ke server!', 'ok');
+    else notify('⚠ Gagal simpan ke server! Coba lagi.', 'err');
+  } catch(e) {
+    notify('⚠ Error: ' + e.message, 'err');
+  }
+}
 function renderHmBar(){
   // Ambil tanggal terbaru dari hmMap — normalisasi semua format dulu baru sort
   const entries = Object.values(hmMap).map(v => normalizeDate(v.date||'')).filter(Boolean);
