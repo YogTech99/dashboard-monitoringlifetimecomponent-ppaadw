@@ -1145,18 +1145,6 @@ function normalizeDate(raw) {
   }
   return s;
 }
-  // DD-MM-YYYY atau DD/MM/YYYY
-  const m1 = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
-  if (m1) return m1[3] + '-' + m1[2].padStart(2,'0') + '-' + m1[1].padStart(2,'0');
-  // Serial Excel number (angka seperti 46012)
-  const n = parseFloat(s);
-  if (!isNaN(n) && n > 40000 && n < 60000) {
-    const d = new Date(Math.round((n - 25569) * 86400 * 1000));
-    const y = d.getUTCFullYear(), mo = String(d.getUTCMonth()+1).padStart(2,'0'), dy = String(d.getUTCDate()).padStart(2,'0');
-    return y + '-' + mo + '-' + dy;
-  }
-  return s; // fallback, kembalikan as-is
-}
 const MO = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 function fmtDate(s) {
   if (!s || s === '-') return '-';
