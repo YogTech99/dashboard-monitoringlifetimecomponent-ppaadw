@@ -924,7 +924,7 @@ function fleetToRow(u) {
     'Tipe': getEqType(u), 'Brand': u.brand || '', 'Owner': u.owner || '',
     'SN Unit': u.snUnit || '', 'Year': u.yearProduct || '', 'Capacity': u.capacity || '',
     'UOM': u.uom || '', 'Status Unit': u.statusUnit || '', 'Area': u.area || '',
-    'HM Terkini': hmInfo.hm != null ? hmInfo.hm : '', 'Tgl HM Update': hmInfo.date || '',
+    'HM Terkini': hmInfo.hm != null ? hmInfo.hm : '', 'Tgl HM Update': normalizeDate(hmInfo.date || ''),
     'Remark': u.remark || ''
   };
 }
