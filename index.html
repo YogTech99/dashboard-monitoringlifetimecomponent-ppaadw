@@ -914,7 +914,7 @@ function applyRoleRestrictions() {
 }
 
 // ── API BACKEND (Google Apps Script) ──
-const API_URL = 'https://script.google.com/macros/s/AKfycbz4fsg9gXO4eASvdTPSI6tnkDoGXQpJwdvQGY_YEdXV5tqN_NP6vn1B3RjHEnZcets/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxX5vZx85Kp7iQxIQD4WfTR29MC8BrP2_npqA0z-T4VzP-etjAyr5tN5MTMV2zqPrSb/exec';
 
 // ── KONVERSI: objek internal dashboard <-> baris sheet (sesuai header backend) ──
 function fleetToRow(u) {
@@ -1056,13 +1056,27 @@ async function load() {
       if (row['HM Terkini'] !== '' && row['HM Terkini'] != null) {
         const hm = parseFloat(row['HM Terkini']);
         if (!isNaN(hm)) {
-          hmMap[row['Unit Code']] = {
-            hm: hm,
-            date: normalizeDate(row['Tgl HM Update'] || '')
-          };
+          const rawDate = row['Tgl HM Update'] || '';
+          const normDate = normalizeDate(rawDate);
+          if (row['Unit Code'] === 'E2041' || row['Unit Code'] === 'HD78498') {
+            console.log('[HM Debug]', row['Unit Code'], '| raw date:', rawDate, '| normalized:', normDate, '| HM:', hm);
+          }
+          hmMap[row['Unit Code']] = { hm, date: normDate };
         }
       }
     });
+
+    // Merge dengan cache localStorage — kalau cache punya HM lebih besar untuk unit tertentu,
+    // pakai cache (artinya ada upload baru yang belum sempat tersimpan ke Sheets atau format beda)
+    try {
+      const cached = JSON.parse(localStorage.getItem('adw-hm-cache') || '{}');
+      Object.entries(cached).forEach(([unit, cData]) => {
+        const existing = hmMap[unit];
+        if (!existing || (cData.hm > existing.hm)) {
+          hmMap[unit] = { hm: cData.hm, date: normalizeDate(cData.date || '') };
+        }
+      });
+    } catch(e) {}
 
     hcc = (data.hcc && data.hcc.length)
       ? data.hcc.map((row,i) => rowToHcc(row, i, row['Unit']))
@@ -1076,7 +1090,10 @@ async function load() {
     fleet  = FLEET_INIT.map(u=>({...u}));
     proker = PROKER_INIT.map(p=>({...p}));
     hcc    = HCC_INIT.map(r=>({...r}));
-    hmMap  = {};
+    // Fallback ke cache localStorage kalau server gagal
+    try {
+      hmMap = JSON.parse(localStorage.getItem('adw-hm-cache') || '{}');
+    } catch(e2) { hmMap = {}; }
   }
 }
 
@@ -2223,6 +2240,8 @@ async function applyHm(){
   Object.assign(hmMap,hmPrev);hmPrev=null;
   document.getElementById('hmResult').style.display='none';
   renderHmBar();renderSavedHm();if(selUnit)renderDetail(selUnit);renderUnitList();
+  // Cache hmMap ke localStorage sebagai backup display
+  try { localStorage.setItem('adw-hm-cache', JSON.stringify(hmMap)); } catch(e){}
   notify('Menyimpan HM ke server, mohon tunggu...', 'ok');
   try {
     const ok1 = await save();   // kirim fleet (termasuk HM Terkini) + hcc
@@ -2238,9 +2257,11 @@ async function applyHm(){
 }
 function cancelHm(){hmPrev=null;document.getElementById('hmResult').style.display='none';}
 function renderHmBar(){
-  const dates=Object.values(hmMap).map(v=>v.date).filter(Boolean).sort();
-  const last=dates[dates.length-1]||'';
-  document.getElementById('hmDateLabel').textContent=last?fmtDate(last):'-';
+  // Ambil tanggal terbaru dari hmMap — normalisasi semua format dulu baru sort
+  const entries = Object.values(hmMap).map(v => normalizeDate(v.date||'')).filter(Boolean);
+  entries.sort(); // YYYY-MM-DD sort string = kronologis benar
+  const last = entries[entries.length-1] || '';
+  document.getElementById('hmDateLabel').textContent = last ? fmtDate(last) : '-';
 }
 function renderSavedHm(){
   const entries=Object.entries(hmMap);
