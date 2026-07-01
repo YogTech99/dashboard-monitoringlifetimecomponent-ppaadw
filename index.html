@@ -573,9 +573,13 @@ body.viewer-mode .viewer-badge{display:inline-flex}
   </div>
 </div>
 <div id="dashboardScreen">
-<div id="dashLoadingOverlay" style="display:none;position:fixed;inset:0;z-index:500;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px">
+<div id="dashLoadingOverlay" style="display:none;position:fixed;inset:0;z-index:500;background:var(--bg);flex-direction:column;align-items:center;justify-content:center;gap:14px">
   <div style="width:42px;height:42px;border:3px solid var(--bd);border-top-color:var(--gold);border-radius:50%;animation:dashSpin 0.8s linear infinite"></div>
   <div style="color:var(--t2);font-size:13px;font-weight:600;letter-spacing:.3px">Memuat data...</div>
+  <div style="width:200px;background:var(--bd);border-radius:99px;height:6px;overflow:hidden">
+    <div id="dashLoadingBar" style="height:100%;width:0%;background:var(--gold);border-radius:99px;transition:width .3s ease"></div>
+  </div>
+  <div id="dashLoadingPct" style="color:var(--t3);font-size:11px">0%</div>
 </div>
 <style>@keyframes dashSpin{to{transform:rotate(360deg)}}</style>
 <div class="app">
@@ -872,7 +876,7 @@ body.viewer-mode .viewer-badge{display:inline-flex}
     <p id="cfmMsg">Yakin hapus item ini?</p>
     <div class="cfm-acts">
       <button class="btn btn-outline btn-sm" onclick="cfmCancel()">Batal</button>
-      <button class="btn btn-red btn-sm" onclick="cfmOk()">Ya, Hapus</button>
+      <button class="btn btn-red btn-sm" id="cfmOkBtn" onclick="cfmOk()">Ya, Hapus</button>
     </div>
   </div>
 </div>
@@ -1050,7 +1054,13 @@ async function load() {
     hmMap = {};
     (data.fleet || []).forEach(row => {
       if (row['HM Terkini'] !== '' && row['HM Terkini'] != null) {
-        hmMap[row['Unit Code']] = { hm: parseFloat(row['HM Terkini']), date: row['Tgl HM Update'] || '' };
+        const hm = parseFloat(row['HM Terkini']);
+        if (!isNaN(hm)) {
+          hmMap[row['Unit Code']] = {
+            hm: hm,
+            date: normalizeDate(row['Tgl HM Update'] || '')
+          };
+        }
       }
     });
 
@@ -1089,7 +1099,25 @@ async function saveP() {
   } finally { endSaving(); }
 }
 
-// ── DATE FORMAT ──
+// Normalisasi berbagai format tanggal jadi YYYY-MM-DD
+// Support: DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD, serial Excel number
+function normalizeDate(raw) {
+  if (!raw || raw === '' || raw === '-') return '';
+  const s = String(raw).trim();
+  // Sudah YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // DD-MM-YYYY atau DD/MM/YYYY
+  const m1 = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  if (m1) return m1[3] + '-' + m1[2].padStart(2,'0') + '-' + m1[1].padStart(2,'0');
+  // Serial Excel number (angka seperti 46012)
+  const n = parseFloat(s);
+  if (!isNaN(n) && n > 40000 && n < 60000) {
+    const d = new Date(Math.round((n - 25569) * 86400 * 1000));
+    const y = d.getUTCFullYear(), mo = String(d.getUTCMonth()+1).padStart(2,'0'), dy = String(d.getUTCDate()).padStart(2,'0');
+    return y + '-' + mo + '-' + dy;
+  }
+  return s; // fallback, kembalikan as-is
+}
 const MO = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 function fmtDate(s) {
   if (!s || s === '-') return '-';
@@ -1099,9 +1127,10 @@ function fmtDate(s) {
 }
 
 // ── CONFIRM ──
-function showCfm(title, msg, cb) {
+function showCfm(title, msg, cb, okLabel) {
   document.getElementById('cfmTitle').textContent = title;
   document.getElementById('cfmMsg').textContent = msg;
+  document.getElementById('cfmOkBtn').textContent = okLabel || 'Ya, Hapus';
   cfmCb = cb;
   document.getElementById('cfmBg').classList.add('open');
 }
@@ -2171,8 +2200,8 @@ function processHmFileObj(file){
       for(let i=hdrRow+1;i<data.length;i++){
         const row=data[i];const unit=String(row[uCol]||'').trim();const hm=parseFloat(row[hmCol]);
         if(!unit||isNaN(hm))continue;
-        const dt=dtCol>=0?String(row[dtCol]||''):'';if(dt)lastDate=dt;
-        if(!map[unit]||hm>map[unit].hm)map[unit]={hm,date:dt,shift:shCol>=0?String(row[shCol]||''):''};
+        const dt = dtCol>=0 ? normalizeDate(String(row[dtCol]||'')) : ''; if(dt) lastDate=dt;
+        if(!map[unit]||hm>map[unit].hm) map[unit]={hm, date:dt, shift:shCol>=0?String(row[shCol]||''):''};
       }
       const allCodes=fleet.map(u=>u.unitCode);
       hmPrev=map;
@@ -2678,11 +2707,33 @@ function closeSidebarOnMobile() {
 }
 
 // ── LOGIN → DASHBOARD SCREEN SWITCH ──
+function setLoadingProgress(pct, label) {
+  const bar = document.getElementById('dashLoadingBar');
+  const txt = document.getElementById('dashLoadingPct');
+  if (bar) bar.style.width = pct + '%';
+  if (txt) txt.textContent = (label ? label + ' — ' : '') + pct + '%';
+}
+
 function showDashboard() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('dashboardScreen').style.display = 'block';
-  document.getElementById('dashLoadingOverlay').style.display = 'flex';
-  init().finally(() => { document.getElementById('dashLoadingOverlay').style.display = 'none'; });
+  const overlay = document.getElementById('dashLoadingOverlay');
+  overlay.style.display = 'flex';
+  setLoadingProgress(5, 'Menghubungkan server');
+  // Simulasi progress bertahap selama fetch berlangsung
+  let pct = 5;
+  const ticker = setInterval(() => {
+    if (pct < 85) { pct += Math.random() * 8; setLoadingProgress(Math.round(Math.min(pct,85)), 'Memuat data'); }
+  }, 400);
+  init().then(() => {
+    clearInterval(ticker);
+    setLoadingProgress(100, 'Selesai');
+    setTimeout(() => { overlay.style.display = 'none'; }, 400);
+  }).catch(() => {
+    clearInterval(ticker);
+    setLoadingProgress(100, 'Selesai');
+    setTimeout(() => { overlay.style.display = 'none'; }, 400);
+  });
 }
 
 function handleLogout() {
@@ -2695,7 +2746,7 @@ function handleLogout() {
     document.getElementById('password').value = '';
     document.getElementById('dashboardScreen').style.display = 'none';
     document.getElementById('loginScreen').style.display = 'flex';
-  });
+  }, 'Ya, Logout');
 }
 
 // NOTE: init() TIDAK dipanggil otomatis di sini.
