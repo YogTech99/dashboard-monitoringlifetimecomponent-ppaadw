@@ -473,8 +473,10 @@ body.viewer-mode .viewer-badge{display:inline-flex}
       opacity: 0.9;
       letter-spacing: 0.3px;
     }
-#loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0a0a0a;font-family:'Montserrat',sans-serif}
+#loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#0d1526 0%,#050608 65%,#000000 100%);font-family:'Montserrat',sans-serif;position:relative;overflow:hidden}
 #dashboardScreen{display:none}
+#spaceCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;display:block}
+#loginScreen .card{backdrop-filter:blur(20px) saturate(140%);-webkit-backdrop-filter:blur(20px) saturate(140%)}
 /* ══════════ HAMBURGER & MOBILE SIDEBAR ══════════ */
 .hamburger-btn{display:none;background:none;border:1px solid var(--bd);color:var(--t1);
   font-size:18px;width:36px;height:36px;border-radius:8px;cursor:pointer;flex-shrink:0;
@@ -534,6 +536,7 @@ body.viewer-mode .viewer-badge{display:inline-flex}
 </head>
 <body>
 <div id="loginScreen">
+<canvas id="spaceCanvas"></canvas>
 <div class="card">
 
     <img
@@ -572,6 +575,202 @@ body.viewer-mode .viewer-badge{display:inline-flex}
     <p class="footer">Development By Handika Yoga (Plant Engineering) @2026</p>
   </div>
 </div>
+<script>
+/* ══════════ GREEN GALAXY SPIRAL LOGIN BACKGROUND ══════════ */
+(function(){
+  var canvas = document.getElementById('spaceCanvas');
+  if(!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var W, H, cx, cy, baseR;
+  var stars = [], shootingStars = [], galaxy = [];
+  var t = 0;
+  var running = true;
+
+  function resize(){
+    var dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.round(W*dpr);
+    canvas.height = Math.round(H*dpr);
+    canvas.style.width = W+'px';
+    canvas.style.height = H+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    cx = W/2; cy = H/2;
+    baseR = Math.min(W,H) * 0.62;
+    buildStars();
+    buildGalaxy();
+  }
+
+  function buildStars(){
+    stars = [];
+    var count = Math.round((W*H)/4200);
+    for(var i=0;i<count;i++){
+      stars.push({
+        x: Math.random()*W,
+        y: Math.random()*H,
+        r: Math.random()*1.5 + 0.3,
+        baseA: Math.random()*0.55 + 0.3,
+        speed: Math.random()*0.02 + 0.006,
+        phase: Math.random()*Math.PI*2
+      });
+    }
+  }
+
+  // Logarithmic-ish multi-arm spiral of particles, rotating with differential speed
+  // (inner particles orbit faster than outer ones, like a real galaxy)
+  function buildGalaxy(){
+    galaxy = [];
+    var count = 2200;
+    var arms = 3;
+    var maxRadius = baseR;
+    for(var i=0;i<count;i++){
+      var arm = i % arms;
+      var tt = Math.pow(Math.random(), 0.62); // bias toward center = denser core
+      var spiralTurns = 2.6;
+      var armSpread = (arm / arms) * Math.PI * 2;
+      var jitterAngle = (Math.random()-0.5) * (0.55 * (0.35 + tt));
+      var angle = tt * spiralTurns * Math.PI * 2 + armSpread + jitterAngle;
+      var jitterRadius = (Math.random()-0.5) * baseR * 0.035 * (0.4 + tt);
+      var radius = tt * maxRadius + jitterRadius;
+      var speed = (0.0026 + Math.random()*0.0006) / (0.32 + tt) * 0.14;
+      var size = (1 - tt) * 1.9 + 0.4 + Math.random()*0.5;
+      galaxy.push({
+        angle: angle,
+        radius: Math.max(radius, 2),
+        speed: speed,
+        size: size,
+        tt: tt,
+        baseA: (1-tt)*0.55 + 0.28 + Math.random()*0.15,
+        twSpeed: Math.random()*0.03 + 0.01,
+        twPhase: Math.random()*Math.PI*2
+      });
+    }
+  }
+
+  function galaxyColor(tt, alpha){
+    // center: bright mint-white  ->  mid/outer: rich green  ->  far edge: deep emerald
+    var r = Math.round(lerp(215, 20, tt));
+    var g = Math.round(lerp(255, 150, tt));
+    var b = Math.round(lerp(225, 80, tt));
+    return 'rgba('+r+','+g+','+b+','+alpha.toFixed(3)+')';
+  }
+  function lerp(a,b,f){ return a + (b-a)*f; }
+
+  function maybeSpawnShootingStar(){
+    if(Math.random() < 0.007 && shootingStars.length < 2){
+      var startX = Math.random()*W*0.6 + W*0.1;
+      var startY = Math.random()*H*0.25;
+      shootingStars.push({
+        x:startX, y:startY,
+        vx: (Math.random()*4+5),
+        vy: (Math.random()*2+2.5),
+        life: 0, maxLife: Math.random()*30+30
+      });
+    }
+  }
+
+  function drawStars(){
+    for(var i=0;i<stars.length;i++){
+      var s = stars[i];
+      var a = s.baseA + Math.sin(t*s.speed*10 + s.phase)*0.25;
+      if(a<0.08) a=0.08;
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(255,255,255,'+a.toFixed(3)+')';
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  function drawShootingStars(){
+    for(var i=shootingStars.length-1;i>=0;i--){
+      var sh = shootingStars[i];
+      sh.x += sh.vx; sh.y += sh.vy; sh.life++;
+      var alpha = 1 - (sh.life/sh.maxLife);
+      if(alpha<=0 || sh.x>W+50 || sh.y>H+50){ shootingStars.splice(i,1); continue; }
+      var grad = ctx.createLinearGradient(sh.x, sh.y, sh.x - sh.vx*8, sh.y - sh.vy*8);
+      grad.addColorStop(0, 'rgba(220,255,230,'+(alpha).toFixed(3)+')');
+      grad.addColorStop(1, 'rgba(220,255,230,0)');
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(sh.x, sh.y);
+      ctx.lineTo(sh.x - sh.vx*8, sh.y - sh.vy*8);
+      ctx.stroke();
+    }
+  }
+
+  function drawCore(){
+    var coreR = Math.max(14, baseR*0.05);
+    var pulse = 1 + Math.sin(t*0.035)*0.08;
+    var glowR = coreR*9*pulse;
+    var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR);
+    grad.addColorStop(0, 'rgba(220,255,235,0.65)');
+    grad.addColorStop(0.18, 'rgba(120,255,170,0.30)');
+    grad.addColorStop(0.5, 'rgba(34,197,94,0.12)');
+    grad.addColorStop(1, 'rgba(34,197,94,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, glowR, 0, Math.PI*2);
+    ctx.fill();
+
+    var coreGrad = ctx.createRadialGradient(cx-coreR*0.3, cy-coreR*0.3, coreR*0.1, cx, cy, coreR*pulse);
+    coreGrad.addColorStop(0, '#ffffff');
+    coreGrad.addColorStop(0.4, '#d7ffe6');
+    coreGrad.addColorStop(1, '#4ade80');
+    ctx.fillStyle = coreGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, coreR*pulse, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  var ellipseSquish = 0.62; // slight tilt so the spiral reads like the reference video
+
+  function drawGalaxy(){
+    for(var i=0;i<galaxy.length;i++){
+      var p = galaxy[i];
+      p.angle += p.speed;
+      var x = cx + Math.cos(p.angle)*p.radius*1.28;
+      var y = cy + Math.sin(p.angle)*p.radius*ellipseSquish;
+      var tw = Math.sin(t*p.twSpeed + p.twPhase)*0.22;
+      var a = Math.max(0.05, Math.min(1, p.baseA + tw));
+      ctx.beginPath();
+      ctx.fillStyle = galaxyColor(p.tt, a);
+      ctx.arc(x, y, p.size, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  function frame(){
+    if(!running) return;
+    t++;
+    ctx.clearRect(0,0,W,H);
+    drawStars();
+    drawCore();
+    drawGalaxy();
+    maybeSpawnShootingStar();
+    drawShootingStars();
+    requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('resize', function(){
+    resize();
+  });
+
+  resize();
+  requestAnimationFrame(frame);
+
+  // Pause the animation once dashboard is shown (login screen hidden) to save resources
+  var loginEl = document.getElementById('loginScreen');
+  if(loginEl){
+    var obs = new MutationObserver(function(){
+      var visible = loginEl.style.display !== 'none';
+      if(visible && !running){ running = true; requestAnimationFrame(frame); }
+      if(!visible){ running = false; }
+    });
+    obs.observe(loginEl, { attributes:true, attributeFilter:['style'] });
+  }
+})();
+</script>
 <div id="dashboardScreen">
 <div id="dashLoadingOverlay" style="display:none;position:fixed;inset:0;z-index:500;background:var(--bg);flex-direction:column;align-items:center;justify-content:center;gap:14px">
   <div style="width:42px;height:42px;border:3px solid var(--bd);border-top-color:var(--gold);border-radius:50%;animation:dashSpin 0.8s linear infinite"></div>
