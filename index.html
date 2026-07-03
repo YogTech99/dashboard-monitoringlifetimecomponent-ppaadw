@@ -286,7 +286,7 @@ tr:last-child td{border-bottom:none}
 .gd-table-wrap::-webkit-scrollbar-thumb{background:var(--bd);border-radius:4px}
 .gd-table-wrap::-webkit-scrollbar-thumb:hover{background:var(--t3)}
 .gd-tbl thead{position:sticky;top:0;z-index:5}
-.gd-tbl th{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;padding:8px 12px;border-bottom:1px solid var(--bd);white-space:nowrap;background:var(--s1)}
+.gd-tbl th{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;padding:8px 12px;border-bottom:1px solid var(--bd);white-space:nowrap;background:var(--s1);text-align:center}
 .gd-tbl td{font-size:11.5px;padding:8px 12px;border-bottom:1px solid rgba(48,54,61,.4);vertical-align:middle;white-space:nowrap}
 .gd-tbl tbody tr:hover td{background:rgba(240,165,0,.04)}
 .gd-tbl .unit-link{font-weight:700;color:var(--gold);cursor:pointer}
@@ -2928,10 +2928,11 @@ function renderGlobalData() {
         <col style="width:190px"> <!-- deskripsi -->
         <col style="width:56px">  <!-- posisi -->
         <col style="width:100px"> <!-- tgl install -->
-        <col style="width:66px">  <!-- hm install -->
-        <col style="width:72px">  <!-- hm update -->
+        <col style="width:90px">  <!-- hm install -->
+        <col style="width:94px">  <!-- hm update -->
         <col style="width:68px">  <!-- lifetime -->
         <col style="width:66px">  <!-- target lt -->
+        <col style="width:52px">  <!-- exc -->
         <col style="width:58px">  <!-- sisa -->
         <col style="width:84px">  <!-- progress -->
         <col style="width:66px">  <!-- status -->
@@ -2941,13 +2942,17 @@ function renderGlobalData() {
       <thead><tr>
         <th>#</th><th>Unit</th><th>Model</th><th>Kat</th><th>Deskripsi</th>
         <th>Posisi</th><th>Tgl Install</th><th>HM Install</th><th>HM Update</th>
-        <th>Lifetime</th><th>Target LT</th><th>Sisa</th><th>Progress</th><th>Status</th><th>Sts</th><th>Remark</th>
+        <th>Lifetime</th><th>Target LT</th><th>Exc</th><th>Sisa</th><th>Progress</th><th>Status</th><th>Sts</th><th>Remark</th>
       </tr></thead>
       <tbody>${rows.map((r,i) => {
         const u = fleet.find(x=>x.unitCode===r._code)||{};
         const hmUpd = r._isRun ? (r._curHm?fmtN(r._curHm):'-') : fmtN(r.hr??r.hmRemove);
         const pct   = r._tgt && r._lt ? Math.min(100,(r._lt/r._tgt*100)) : null;
         const barColor = r._st==='overdue'?'var(--red)':r._st==='caution'?'#f97316':'var(--green)';
+        const exc = r.exc||'';
+        const excChip = exc==='BUS' ? `<span class="chip" style="background:rgba(59,130,246,.18);color:#60a5fa;font-size:9px">BUS</span>`
+                      : exc==='BS'  ? `<span class="chip" style="background:rgba(168,85,247,.18);color:#c084fc;font-size:9px">BS</span>`
+                      : '-';
         return `<tr>
           <td style="color:var(--t3);font-size:10px">${i+1}</td>
           <td style="overflow:hidden;text-overflow:ellipsis"><span class="unit-link" onclick="closeGlobalData();gotoUnit('${r._code}')">${r._code}</span></td>
@@ -2960,6 +2965,7 @@ function renderGlobalData() {
           <td>${r._isRun?`<b style="color:var(--green)">${hmUpd}</b>`:hmUpd}</td>
           <td><b style="color:var(--gold)">${r._lt!=null?Math.round(r._lt).toLocaleString()+'h':'-'}</b></td>
           <td style="font-weight:700">${r._tgt!=null?fmtN(r._tgt):'-'}</td>
+          <td style="text-align:center">${excChip}</td>
           <td style="font-weight:700;color:${r._sisa!=null&&r._sisa<0?'var(--red)':r._sisa!=null&&r._sisa<750?'#f97316':'var(--t2)'}">${r._sisa!=null?Math.round(r._sisa).toLocaleString()+'h':'-'}</td>
           <td>${pct!=null?`<div class="hrs-bar-wrap"><div class="hrs-bar"><div class="hrs-bar-fill" style="width:${Math.min(pct,100)}%;background:${barColor}"></div></div><span style="font-size:10px;color:var(--t3);flex-shrink:0">${pct.toFixed(0)}%</span></div>`:'-'}</td>
           <td>${r._st?chip(r._st):'-'}</td>
@@ -3016,7 +3022,7 @@ function renderGlobalData() {
         <col style="width:66px">  <!-- hm upd -->
         <col style="width:58px">  <!-- std lt -->
         <col style="width:100px"> <!-- tgl install -->
-        <col style="width:66px">  <!-- hm install -->
+        <col style="width:90px">  <!-- hm install -->
         <col style="width:58px">  <!-- lt upd -->
         <col style="width:84px">  <!-- % usage -->
         <col style="width:62px">  <!-- hrs left -->
