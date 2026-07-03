@@ -280,13 +280,13 @@ tr:last-child td{border-bottom:none}
 .gd-result-info b{color:var(--t1)}
 .gd-sec-title{display:flex;align-items:center;gap:8px;padding:10px 16px;font-size:12px;font-weight:700;border-bottom:1px solid var(--bd);background:var(--s1);position:sticky;top:38px;z-index:4}
 .gd-sec-badge{background:var(--s2);border:1px solid var(--bd);border-radius:12px;padding:2px 9px;font-size:10px;color:var(--t2);font-weight:600}
-.gd-table-wrap{flex:1;overflow-x:auto;overflow-y:auto}
+.gd-table-wrap{flex:1;min-width:0;overflow-x:auto;overflow-y:auto}
 .gd-tbl{table-layout:auto;border-collapse:collapse;min-width:100%}
 .gd-table-wrap::-webkit-scrollbar{height:8px;width:8px}
 .gd-table-wrap::-webkit-scrollbar-thumb{background:var(--bd);border-radius:4px}
 .gd-table-wrap::-webkit-scrollbar-thumb:hover{background:var(--t3)}
 .gd-tbl thead{position:sticky;top:0;z-index:5}
-.gd-tbl th{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;padding:8px 12px;border-bottom:1px solid var(--bd);white-space:nowrap;background:var(--s1);text-align:center}
+.gd-tbl th{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;padding:8px 6px;border-bottom:1px solid var(--bd);white-space:nowrap;background:var(--s1);text-align:center}
 .gd-tbl td{font-size:11.5px;padding:8px 12px;border-bottom:1px solid rgba(48,54,61,.4);vertical-align:middle;white-space:nowrap}
 .gd-tbl tbody tr:hover td{background:rgba(240,165,0,.04)}
 .gd-tbl .unit-link{font-weight:700;color:var(--gold);cursor:pointer}
@@ -2928,8 +2928,8 @@ function renderGlobalData() {
         <col style="width:190px"> <!-- deskripsi -->
         <col style="width:56px">  <!-- posisi -->
         <col style="width:100px"> <!-- tgl install -->
-        <col style="width:90px">  <!-- hm install -->
-        <col style="width:94px">  <!-- hm update -->
+        <col style="width:80px">  <!-- hm install -->
+        <col style="width:84px">  <!-- hm update -->
         <col style="width:68px">  <!-- lifetime -->
         <col style="width:66px">  <!-- target lt -->
         <col style="width:52px">  <!-- exc -->
@@ -2937,7 +2937,7 @@ function renderGlobalData() {
         <col style="width:84px">  <!-- progress -->
         <col style="width:66px">  <!-- status -->
         <col style="width:44px">  <!-- sts -->
-        <col style="width:160px"> <!-- remark -->
+        <col style="width:145px"> <!-- remark -->
       </colgroup>
       <thead><tr>
         <th>#</th><th>Unit</th><th>Model</th><th>Kat</th><th>Deskripsi</th>
@@ -3022,14 +3022,14 @@ function renderGlobalData() {
         <col style="width:66px">  <!-- hm upd -->
         <col style="width:58px">  <!-- std lt -->
         <col style="width:100px"> <!-- tgl install -->
-        <col style="width:90px">  <!-- hm install -->
+        <col style="width:80px">  <!-- hm install -->
         <col style="width:58px">  <!-- lt upd -->
         <col style="width:84px">  <!-- % usage -->
         <col style="width:62px">  <!-- hrs left -->
         <col style="width:86px">  <!-- plan date -->
         <col style="width:66px">  <!-- status -->
         <col style="width:44px">  <!-- sts -->
-        <col style="width:160px"> <!-- remarks -->
+        <col style="width:145px"> <!-- remarks -->
       </colgroup>
       <thead><tr>
         <th>#</th><th>Unit</th><th>Model</th><th>Deskripsi</th>
