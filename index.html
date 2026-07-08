@@ -1142,6 +1142,7 @@ let selModel=null, selUnit=null;
 let editUnitId=null, editCompId=null, editProkerId=null;
 let hmPrev=null, cfmCb=null;
 let hccSort={col:null, dir:'asc'}; // sort state for HCC table
+let gdSort={col:null, dir:'asc'};  // sort state for General Data (HCC & Proker) table
 
 // ── ROLE / ACCESS CONTROL ──
 // 'admin'  = akses penuh (tambah/edit/hapus)
@@ -1411,6 +1412,20 @@ function fmtDate(s) {
   if (!isNaN(d.getTime())) return d.getDate() + ' ' + MO[d.getMonth()] + ' ' + d.getFullYear();
   return s;
 }
+// Nilai numerik (timestamp) dari field tanggal mentah, khusus untuk keperluan SORT.
+// Aturan parsing sama persis dengan fmtDate di atas (ISO / raw Date string Google Sheets / fallback new Date)
+// supaya urutan sort selalu konsisten dengan tanggal yang ditampilkan, walau format data mentahnya campuran.
+function dateSortVal(s) {
+  if (!s || s === '-') return null;
+  const str = String(s);
+  let m = str.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return Date.UTC(+m[1], +m[2]-1, +m[3]);
+  const MON3 = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+  m = str.match(/\b([A-Za-z]{3})\s+(\d{1,2})\s+(\d{4})\b/);
+  if (m && MON3[m[1]] !== undefined) return Date.UTC(+m[3], MON3[m[1]], +m[2]);
+  const d2 = new Date(s);
+  return isNaN(d2.getTime()) ? null : d2.getTime();
+}
 
 // ── CONFIRM ──
 function showCfm(title, msg, cb, okLabel) {
@@ -1651,6 +1666,25 @@ function renderDetail(code) {
   const overdueProker = prokerWithLt.filter(p => !p._isClosed && p.std && p._ltUpd!=null && p._ltUpd > p.std);
   // Caution: only active records where hrs left < 750 and not overdue
   const cautionProker = prokerWithLt.filter(p => !p._isClosed && p.std && p._ltUpd!=null && p._ltUpd <= p.std && (p.std - p._ltUpd) < 750);
+
+  // HCC lifetime status — logic sama persis dengan General Data HCC (renderGlobalData)
+  // supaya status Overdue/Caution HCC konsisten di semua tampilan, termasuk tab Info ini.
+  const hccWithStatus = uHcc.map(r => {
+    const hi    = r.hi??r.hmInstall;
+    const ac    = hccAutoCloseMap.get(r) || { isClosed:false, closedAtHm:null };
+    const isRun = !ac.isClosed && (r.hr??r.hmRemove)==='Running';
+    const lt    = ac.isClosed && hi!=null && ac.closedAtHm!=null ? Math.max(0, ac.closedAtHm-hi)
+                : (isRun && curHm && hi!=null ? curHm-hi : (r.lt??r.lifeTime));
+    const tgt   = r.targetLt;
+    const sisa  = tgt!=null && lt!=null ? tgt-lt : null;
+    let st = null;
+    if (ac.isClosed) st = 'done';
+    else if (tgt!=null && lt!=null) st = lt>tgt ? 'overdue' : sisa<750 ? 'caution' : 'normal';
+    return {...r, _lt:lt, _tgt:tgt, _sisa:sisa, _st:st};
+  });
+  const overdueHcc = hccWithStatus.filter(r => r._st==='overdue');
+  const cautionHcc = hccWithStatus.filter(r => r._st==='caution');
+
   const on = !u.statusUnit||u.statusUnit.includes('ON');
 
   el.innerHTML = `<div class="det">
@@ -1678,8 +1712,8 @@ function renderDetail(code) {
       <div class="cards">
         <div class="card"><div class="card-lbl">Status</div><div style="margin-top:3px">${on?'<span class="chip ch-on">ON SITE</span>':'<span class="chip ch-off">'+(u.statusUnit||'OFF')+'</span>'}</div></div>
         <div class="card"><div class="card-lbl">HM Update</div><div class="card-val cg">${curHm?Math.round(curHm).toLocaleString():'-'}</div><div class="card-sub">${fmtDate(hmDate)||'belum upload'}</div></div>
-        <div class="card"><div class="card-lbl">Overdue</div><div class="card-val ${overdueProker.length>0?'cr':''}">${overdueProker.length}</div><div class="card-sub">proker overdue</div></div>
-        <div class="card"><div class="card-lbl">Caution</div><div class="card-val ${cautionProker.length>0?'cg':''}" style="${cautionProker.length>0?'color:#f97316':''}">${cautionProker.length}</div><div class="card-sub">&lt;750 jam sisa</div></div>
+        <div class="card"><div class="card-lbl">Overdue</div><div class="card-val ${(overdueProker.length+overdueHcc.length)>0?'cr':''}">${overdueProker.length+overdueHcc.length}</div><div class="card-sub">${overdueProker.length} proker · ${overdueHcc.length} hcc</div></div>
+        <div class="card"><div class="card-lbl">Caution</div><div class="card-val ${(cautionProker.length+cautionHcc.length)>0?'cg':''}" style="${(cautionProker.length+cautionHcc.length)>0?'color:#f97316':''}">${cautionProker.length+cautionHcc.length}</div><div class="card-sub">${cautionProker.length} proker · ${cautionHcc.length} hcc</div></div>
         <div class="card"><div class="card-lbl">Total HCC</div><div class="card-val">${uHcc.length}</div></div>
       </div>
 
@@ -1710,6 +1744,35 @@ function renderDetail(code) {
           }).join('')}</tbody>
         </table></div>
       </div>`:'<div class="sec"><div style="text-align:center;padding:16px;color:var(--t3);font-size:12px">✅ Tidak ada proker overdue</div></div>'}
+
+      ${overdueHcc.length>0?`<div class="sec">
+        <div class="sec-title" style="color:var(--red)">⚠ Overdue Lifetime HCC</div>
+        <div class="tw"><table style="table-layout:fixed;width:100%">
+          <colgroup>
+            <col style="width:56px"><col style="width:190px"><col style="width:74px"><col style="width:70px"><col style="width:70px"><col style="width:auto">
+          </colgroup>
+          <thead><tr>
+            <th style="font-size:9.5px">Kat</th>
+            <th style="font-size:9.5px">Deskripsi</th>
+            <th style="font-size:9.5px">Lifetime</th>
+            <th style="font-size:9.5px">Target LT</th>
+            <th style="font-size:9.5px">Selisih</th>
+            <th style="font-size:9.5px">Remarks</th>
+          </tr></thead>
+          <tbody>${overdueHcc.map(r=>{
+            const selisih = r._lt!=null && r._tgt!=null ? Math.round(r._lt - r._tgt) : null;
+            const isMaj = (r.cat||r.compCategory||'')==='MAJOR';
+            return `<tr>
+              <td style="font-size:11px"><span class="chip ${isMaj?'ch-major':'ch-minor'}" style="font-size:9px">${r.cat||r.compCategory||''}</span></td>
+              <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.desc||r.compDesc||''}">${r.desc||r.compDesc||''}</td>
+              <td style="font-size:11px"><b style="color:var(--gold)">${r._lt!=null?Math.round(r._lt).toLocaleString():'-'}</b></td>
+              <td style="font-size:11px">${fmtN(r._tgt)}</td>
+              <td style="font-size:11px"><span style="color:var(--red);font-weight:700">+${selisih!=null?selisih.toLocaleString():'-'}h</span></td>
+              <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.rm||r.remark||''}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>
+      </div>`:''}
 
       ${cautionProker.length>0?`<div class="sec">
         <div class="sec-title" style="color:#f97316">🔔 Caution Preparation Proker</div>
@@ -1745,6 +1808,34 @@ function renderDetail(code) {
               <td style="font-size:11px"><span style="color:#f97316;font-weight:700">${hrsLeft!=null?hrsLeft.toLocaleString()+' h':'-'}</span></td>
               <td style="font-size:11px">${planDisplay}</td>
               <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.rem||''}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>
+      </div>`:''}
+
+      ${cautionHcc.length>0?`<div class="sec">
+        <div class="sec-title" style="color:#f97316">🔔 Caution Lifetime HCC</div>
+        <div class="tw"><table style="table-layout:fixed;width:100%">
+          <colgroup>
+            <col style="width:56px"><col style="width:190px"><col style="width:74px"><col style="width:70px"><col style="width:70px"><col style="width:auto">
+          </colgroup>
+          <thead><tr>
+            <th style="font-size:9.5px">Kat</th>
+            <th style="font-size:9.5px">Deskripsi</th>
+            <th style="font-size:9.5px">Lifetime</th>
+            <th style="font-size:9.5px">Target LT</th>
+            <th style="font-size:9.5px">Sisa</th>
+            <th style="font-size:9.5px">Remarks</th>
+          </tr></thead>
+          <tbody>${cautionHcc.map(r=>{
+            const isMaj = (r.cat||r.compCategory||'')==='MAJOR';
+            return `<tr>
+              <td style="font-size:11px"><span class="chip ${isMaj?'ch-major':'ch-minor'}" style="font-size:9px">${r.cat||r.compCategory||''}</span></td>
+              <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.desc||r.compDesc||''}">${r.desc||r.compDesc||''}</td>
+              <td style="font-size:11px"><b style="color:var(--gold)">${r._lt!=null?Math.round(r._lt).toLocaleString():'-'}</b></td>
+              <td style="font-size:11px">${fmtN(r._tgt)}</td>
+              <td style="font-size:11px"><span style="color:#f97316;font-weight:700">${r._sisa!=null?Math.round(r._sisa).toLocaleString()+'h':'-'}</span></td>
+              <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.rm||r.remark||''}</td>
             </tr>`;
           }).join('')}</tbody>
         </table></div>
@@ -1837,6 +1928,16 @@ function hccSortBy(col) {
     hccSort.dir = 'asc';
   }
   filterHcc();
+}
+
+function gdSortBy(col) {
+  if (gdSort.col === col) {
+    gdSort.dir = gdSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    gdSort.col = col;
+    gdSort.dir = 'asc';
+  }
+  renderGlobalData();
 }
 
 function renderHccTab(code, q='', cat='', st='') {
@@ -2840,6 +2941,7 @@ function openGlobalData(tab) {
   const label = document.getElementById('gdActiveTabLabel');
   label.textContent = gdTab === 'hcc' ? '📋 General Data HCC' : '⚙ General Data Proker';
   document.getElementById('gdStatus').value = '';
+  gdSort = {col:null, dir:'asc'}; // reset sort tiap ganti tab HCC/Proker (kolomnya beda)
   gdTypeChange(); // this internally calls renderGlobalData() once, with correct gdTab already set
 }
 function closeGlobalData() { document.getElementById('gdPage').classList.remove('open'); }
@@ -2883,6 +2985,20 @@ function renderGlobalData() {
     return '<span class="st-chip st-normal">Normal</span>';
   };
 
+  // helper: sortable header cell — dipakai tab HCC & Proker, state gdSort di-share berdua
+  const gdThSort = (label, col) => {
+    const active = gdSort.col === col;
+    const dirCls = active ? gdSort.dir : '';
+    return `<th class="th-sort ${dirCls}" onclick="gdSortBy('${col}')">${label}<span class="sort-icon"></span></th>`;
+  };
+  const rankSt = {overdue:0, caution:1, normal:2, done:3};
+  // Comparator generik null-safe: field kosong selalu ditaruh di akhir, apapun arah sort-nya.
+  // cmpStr pakai {numeric:true} supaya urutan kode unit natural (GD2 < GD9 < GD10, bukan alfabetis GD10 < GD2).
+  const cmpNum = (va, vb, dir) => { if (va==null && vb==null) return 0; if (va==null) return 1; if (vb==null) return -1; return dir*(va-vb); };
+  const cmpStr = (va, vb, dir) => dir * (va||'').localeCompare(vb||'', undefined, {numeric:true, sensitivity:'base'});
+  const unitModelMap = new Map(fleet.map(u => [u.unitCode, u.modelGroup||u.model||'']));
+  const modelOf = code => unitModelMap.get(code) || '';
+
   if (gdTab === 'hcc') {
     const hccAutoCloseByUnitGd = {};
     let allRows = hcc.filter(r => {
@@ -2901,10 +3017,13 @@ function renderGlobalData() {
                   : (isRun && curHm && hi!=null ? curHm-hi : (r.lt??r.lifeTime));
       const tgt   = r.targetLt;
       const sisa  = tgt!=null && lt!=null ? tgt-lt : null;
+      const pct   = tgt && lt!=null ? Math.min(100,(lt/tgt*100)) : null;
+      const hmUpdRaw = isRun ? curHm : (r.hr??r.hmRemove);
+      const hmUpdVal  = typeof hmUpdRaw==='number' ? hmUpdRaw : (parseFloat(hmUpdRaw)||null);
       let st = null;
       if (ac.isClosed) st = 'done';
       else if (tgt!=null && lt!=null) st = lt>tgt ? 'overdue' : sisa<750 ? 'caution' : 'normal';
-      return {...r, _code:code, _lt:lt, _tgt:tgt, _sisa:sisa, _st:st, _isRun:isRun, _curHm:curHm, _hi:hi, _isClosed:ac.isClosed, _closedAtHm:ac.closedAtHm};
+      return {...r, _code:code, _lt:lt, _tgt:tgt, _sisa:sisa, _pct:pct, _hmUpdVal:hmUpdVal, _st:st, _isRun:isRun, _curHm:curHm, _hi:hi, _isClosed:ac.isClosed, _closedAtHm:ac.closedAtHm};
     });
 
     // Count all statuses (before status filter)
@@ -2914,6 +3033,29 @@ function renderGlobalData() {
     // Apply status filter
     let rows = allRows;
     if (selSt) rows = rows.filter(r => r._st === selSt);
+
+    // Apply sort
+    if (gdSort.col) {
+      const dir = gdSort.dir === 'asc' ? 1 : -1;
+      rows = [...rows].sort((a,b) => {
+        switch (gdSort.col) {
+          case 'unit':       return cmpStr(a._code, b._code, dir);
+          case 'model':      return cmpStr(modelOf(a._code), modelOf(b._code), dir);
+          case 'kat':        return cmpStr(a.cat||a.compCategory, b.cat||b.compCategory, dir);
+          case 'deskripsi':  return cmpStr(a.desc||a.compDesc, b.desc||b.compDesc, dir);
+          case 'posisi':     return cmpStr(fmtPos(a), fmtPos(b), dir);
+          case 'tglinstall': return cmpNum(dateSortVal(a.dt||a.dateInstalled), dateSortVal(b.dt||b.dateInstalled), dir);
+          case 'hminstall':  return cmpNum(a._hi, b._hi, dir);
+          case 'hmupdate':   return cmpNum(a._hmUpdVal, b._hmUpdVal, dir);
+          case 'lifetime':   return cmpNum(a._lt, b._lt, dir);
+          case 'targetlt':   return cmpNum(a._tgt, b._tgt, dir);
+          case 'sisa':       return cmpNum(a._sisa, b._sisa, dir);
+          case 'progress':   return cmpNum(a._pct, b._pct, dir);
+          case 'status':     return dir * ((rankSt[a._st]??4) - (rankSt[b._st]??4));
+          default: return 0;
+        }
+      });
+    }
 
     document.getElementById('gdResultInfo').innerHTML = `Menampilkan <b>${rows.length}</b> dari <b>${allRows.length}</b> &nbsp;|&nbsp; <span style="color:var(--red)">${counts.overdue} Overdue</span> &nbsp;<span style="color:#f97316">${counts.caution} Caution</span> &nbsp;<span style="color:var(--green)">${counts.normal} Normal</span>`;
 
@@ -2940,9 +3082,9 @@ function renderGlobalData() {
         <col style="width:145px"> <!-- remark -->
       </colgroup>
       <thead><tr>
-        <th>#</th><th>Unit</th><th>Model</th><th>Kat</th><th>Deskripsi</th>
-        <th>Posisi</th><th>Tgl Install</th><th>HM Install</th><th>HM Update</th>
-        <th>Lifetime</th><th>Target LT</th><th>Exc</th><th>Sisa</th><th>Progress</th><th>Status</th><th>Sts</th><th>Remark</th>
+        <th>#</th>${gdThSort('Unit','unit')}${gdThSort('Model','model')}${gdThSort('Kat','kat')}${gdThSort('Deskripsi','deskripsi')}
+        ${gdThSort('Posisi','posisi')}${gdThSort('Tgl Install','tglinstall')}${gdThSort('HM Install','hminstall')}${gdThSort('HM Update','hmupdate')}
+        ${gdThSort('Lifetime','lifetime')}${gdThSort('Target LT','targetlt')}<th>Exc</th>${gdThSort('Sisa','sisa')}${gdThSort('Progress','progress')}${gdThSort('Status','status')}<th>Sts</th><th>Remark</th>
       </tr></thead>
       <tbody>${rows.map((r,i) => {
         const u = fleet.find(x=>x.unitCode===r._code)||{};
@@ -3009,6 +3151,27 @@ function renderGlobalData() {
     let rows = allRows;
     if (selSt) rows = rows.filter(r => r._st === selSt);
 
+    // Apply sort
+    if (gdSort.col) {
+      const dir = gdSort.dir === 'asc' ? 1 : -1;
+      rows = [...rows].sort((a,b) => {
+        switch (gdSort.col) {
+          case 'unit':       return cmpStr(a.u, b.u, dir);
+          case 'model':      return cmpStr(modelOf(a.u), modelOf(b.u), dir);
+          case 'deskripsi':  return cmpStr(a.k, b.k, dir);
+          case 'hmupd':      return cmpNum(parseFloat(a.hm), parseFloat(b.hm), dir);
+          case 'stdlt':      return cmpNum(a.std, b.std, dir);
+          case 'tglinstall': return cmpNum(dateSortVal(a.tglInstall), dateSortVal(b.tglInstall), dir);
+          case 'hminstall':  return cmpNum(a.hmInstall, b.hmInstall, dir);
+          case 'ltupd':      return cmpNum(a._ltUpd, b._ltUpd, dir);
+          case 'progress':   return cmpNum(a._pct, b._pct, dir);
+          case 'sisa':       return cmpNum(a._sisa, b._sisa, dir);
+          case 'status':     return dir * ((rankSt[a._st]??4) - (rankSt[b._st]??4));
+          default: return 0;
+        }
+      });
+    }
+
     document.getElementById('gdResultInfo').innerHTML = `Menampilkan <b>${rows.length}</b> dari <b>${allRows.length}</b> &nbsp;|&nbsp; <span style="color:var(--red)">${counts.overdue} Overdue</span> &nbsp;<span style="color:#f97316">${counts.caution} Caution</span> &nbsp;<span style="color:var(--green)">${counts.normal} Normal</span>`;
 
     if (!rows.length) { body.innerHTML=`<div class="gd-empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><p>Tidak ada data yang cocok</p></div>`; return; }
@@ -3032,9 +3195,9 @@ function renderGlobalData() {
         <col style="width:145px"> <!-- remarks -->
       </colgroup>
       <thead><tr>
-        <th>#</th><th>Unit</th><th>Model</th><th>Deskripsi</th>
-        <th>HM Upd</th><th>Std LT</th><th>Tgl Install</th><th>HM Install</th>
-        <th>LT Upd</th><th>% Usage</th><th>Hrs Left</th><th>Plan Date</th><th>Status</th><th>Sts</th><th>Remarks</th>
+        <th>#</th>${gdThSort('Unit','unit')}${gdThSort('Model','model')}${gdThSort('Deskripsi','deskripsi')}
+        ${gdThSort('HM Upd','hmupd')}${gdThSort('Std LT','stdlt')}${gdThSort('Tgl Install','tglinstall')}${gdThSort('HM Install','hminstall')}
+        ${gdThSort('LT Upd','ltupd')}${gdThSort('% Usage','progress')}${gdThSort('Hrs Left','sisa')}<th>Plan Date</th>${gdThSort('Status','status')}<th>Sts</th><th>Remarks</th>
       </tr></thead>
       <tbody>${rows.map((p,i) => {
         const u = fleet.find(x=>x.unitCode===p.u)||{};
