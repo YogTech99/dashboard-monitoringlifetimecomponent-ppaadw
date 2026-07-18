@@ -1513,7 +1513,15 @@ function applyFilters() {
              !(u.modelGroup||u.model||'').toLowerCase().includes(q) &&
              !(u.owner||'').toLowerCase().includes(q)) return false;
     return true;
-  }).sort((a,b) => a.unitCode.localeCompare(b.unitCode));
+  }).sort((a,b) => {
+    const hmA = hmMap[a.unitCode]?.hm;
+    const hmB = hmMap[b.unitCode]?.hm;
+    const hasA = typeof hmA === 'number' && !isNaN(hmA);
+    const hasB = typeof hmB === 'number' && !isNaN(hmB);
+    if (hasA && hasB) return hmB - hmA;         // HM tertinggi tampil paling atas
+    if (hasA !== hasB) return hasA ? -1 : 1;    // unit tanpa data HM ditaruh di bawah
+    return a.unitCode.localeCompare(b.unitCode); // sama-sama tanpa HM -> fallback alfabetis
+  });
 
   // Update header label
   const hdr = document.getElementById('sfModelHdr');
