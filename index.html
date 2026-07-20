@@ -262,7 +262,7 @@ tr:last-child td{border-bottom:none}
 .th-sort:not(.asc):not(.desc) .sort-icon::after{content:'⇅';opacity:.4}
 
 /* GLOBAL DATA VIEW */
-.gd-page{position:fixed;inset:0;z-index:400;background:var(--bg);overflow:hidden;display:none;flex-direction:column}
+.gd-page{position:fixed;top:64px;left:0;right:0;bottom:0;z-index:400;background:var(--bg);overflow:hidden;display:none;flex-direction:column}
 .gd-page.open{display:flex}
 .gd-topbar{display:flex;align-items:center;gap:10px;padding:0 16px;height:50px;background:var(--s1);border-bottom:1px solid var(--bd);flex-shrink:0}
 .gd-topbar .back-btn{background:none;border:1px solid var(--bd);color:var(--t2);padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;transition:all .12s;white-space:nowrap}
@@ -524,6 +524,8 @@ body.viewer-mode .viewer-badge{display:inline-flex}
   /* Global Data page top bar wraps */
   .gd-topbar{flex-wrap:wrap; gap:8px}
   .gd-filters{flex-wrap:wrap}
+  .gd-page{top:56px}
+  #hmPage,#overviewPage{top:56px !important}
 }
 
 @media (max-width: 480px) {
@@ -531,6 +533,8 @@ body.viewer-mode .viewer-badge{display:inline-flex}
   .logo-sub{display:none}
   .hdr-right .btn-sm{padding:4px 6px}
   .header{height:52px}
+  .gd-page{top:52px}
+  #hmPage,#overviewPage{top:52px !important}
 }
 </style>
 </head>
@@ -878,6 +882,24 @@ body.viewer-mode .viewer-badge{display:inline-flex}
       <option value="caution">Caution (&lt;750h)</option>
       <option value="normal">Normal</option>
     </select>
+    <select id="gdYear" onchange="renderGlobalData()">
+      <option value="">Semua Tahun</option>
+    </select>
+    <select id="gdMonth" onchange="renderGlobalData()">
+      <option value="">Semua Bulan</option>
+      <option value="1">Januari</option>
+      <option value="2">Februari</option>
+      <option value="3">Maret</option>
+      <option value="4">April</option>
+      <option value="5">Mei</option>
+      <option value="6">Juni</option>
+      <option value="7">Juli</option>
+      <option value="8">Agustus</option>
+      <option value="9">September</option>
+      <option value="10">Oktober</option>
+      <option value="11">November</option>
+      <option value="12">Desember</option>
+    </select>
     <div class="gd-result-info" id="gdResultInfo"></div>
   </div>
 
@@ -888,7 +910,7 @@ body.viewer-mode .viewer-badge{display:inline-flex}
 </div>
 
 <!-- HM PAGE -->
-<div id="hmPage" style="display:none;position:fixed;inset:0;z-index:400;background:var(--bg);overflow-y:auto">
+<div id="hmPage" style="display:none;position:fixed;top:64px;left:0;right:0;bottom:0;z-index:400;background:var(--bg);overflow-y:auto">
   <div style="padding:16px;max-width:840px;margin:0 auto">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
       <button class="btn btn-outline btn-sm" onclick="closePage()">← Kembali</button>
@@ -976,7 +998,7 @@ body.viewer-mode .viewer-badge{display:inline-flex}
 </div>
 
 <!-- OVERVIEW PAGE -->
-<div id="overviewPage" style="display:none;position:fixed;inset:0;z-index:400;background:var(--bg);overflow-y:auto">
+<div id="overviewPage" style="display:none;position:fixed;top:64px;left:0;right:0;bottom:0;z-index:400;background:var(--bg);overflow-y:auto">
   <div style="padding:16px;max-width:1400px;margin:0 auto">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
       <button class="btn btn-outline btn-sm" onclick="closePage()">← Kembali</button>
@@ -2949,10 +2971,27 @@ function openGlobalData(tab) {
   const label = document.getElementById('gdActiveTabLabel');
   label.textContent = gdTab === 'hcc' ? '📋 General Data HCC' : '⚙ General Data Proker';
   document.getElementById('gdStatus').value = '';
+  document.getElementById('gdYear').value = '';
+  document.getElementById('gdMonth').value = '';
+  gdPopulateYears(); // opsi tahun beda antara HCC (dt/dateInstalled) & Proker (tglInstall), refresh tiap ganti tab
   gdSort = {col:null, dir:'asc'}; // reset sort tiap ganti tab HCC/Proker (kolomnya beda)
   gdTypeChange(); // this internally calls renderGlobalData() once, with correct gdTab already set
 }
 function closeGlobalData() { document.getElementById('gdPage').classList.remove('open'); }
+
+// Isi dropdown Tahun berdasarkan Tgl Install yang benar-benar ada di data tab aktif (HCC atau Proker).
+// Dipakai buat filter histori: taruh tahun-tahun yg beneran punya record, bukan range statis.
+function gdPopulateYears() {
+  const yearEl = document.getElementById('gdYear');
+  const cur = yearEl.value;
+  const src = gdTab === 'hcc' ? hcc.map(r => r.dt||r.dateInstalled) : proker.map(p => p.tglInstall);
+  const years = [...new Set(src.map(s => {
+    const ts = dateSortVal(s);
+    return ts==null ? null : new Date(ts).getUTCFullYear();
+  }).filter(y => y!=null))].sort((a,b) => b-a);
+  yearEl.innerHTML = '<option value="">Semua Tahun</option>' +
+    years.map(y => `<option${String(y)===cur?' selected':''}>${y}</option>`).join('');
+}
 
 function gdSetStatusFilter(val) {
   document.getElementById('gdStatus').value = val;
@@ -2977,8 +3016,21 @@ function renderGlobalData() {
   const selType = document.getElementById('gdType').value;
   const selMdl  = document.getElementById('gdModel').value;
   const selSt   = document.getElementById('gdStatus').value;
+  const selYear = document.getElementById('gdYear').value;
+  const selMonth= document.getElementById('gdMonth').value;
   const body    = document.getElementById('gdBody');
   const mo2     = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+
+  // Cocokkan tahun/bulan Tgl Install (histori aktual) — dipakai HCC (dt/dateInstalled) & Proker (tglInstall).
+  // Pakai dateSortVal yg sama dgn logic sort, biar konsisten walau format tanggal mentahnya campuran.
+  const matchYM = (dateStr) => {
+    const ts = dateSortVal(dateStr);
+    if (ts == null) return false;
+    const d = new Date(ts);
+    if (selYear  && d.getUTCFullYear() !== +selYear) return false;
+    if (selMonth && (d.getUTCMonth()+1) !== +selMonth) return false;
+    return true;
+  };
 
   const unitSet = new Set(fleet.filter(u => {
     if (selType && getEqType(u) !== selType) return false;
@@ -3013,6 +3065,7 @@ function renderGlobalData() {
       const code = r.u||r.unitCode||'';
       if (!unitSet.has(code)) return false;
       if (q && !(r.desc||r.compDesc||'').toLowerCase().includes(q) && !code.toLowerCase().includes(q)) return false;
+      if ((selYear||selMonth) && !matchYM(r.dt||r.dateInstalled)) return false;
       return true;
     }).map(r => {
       const code  = r.u||r.unitCode||'';
@@ -3129,6 +3182,7 @@ function renderGlobalData() {
     let allRows = proker.filter(p => {
       if (!unitSet.has(p.u||'')) return false;
       if (q && !(p.k||'').toLowerCase().includes(q) && !(p.u||'').toLowerCase().includes(q)) return false;
+      if ((selYear||selMonth) && !matchYM(p.tglInstall)) return false;
       return true;
     }).map(p => {
       // Auto-close: find next record with same description+unit
