@@ -787,6 +787,10 @@ body.viewer-mode .viewer-badge{display:inline-flex}
 <style>@keyframes dashSpin{to{transform:rotate(360deg)}}</style>
 <div class="app">
 
+<div id="fallbackBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:1000;background:#7c2d12;color:#fed7aa;padding:7px 16px;font-size:11.5px;font-weight:700;text-align:center">
+  ⚠️ Sebagian data gagal dimuat dari server — yang tampil ini data cadangan lama (bisa jadi tidak terbaru). Simpan/edit dinonaktifkan sementara. Coba refresh halaman.
+</div>
+
 <div class="header">
   <button class="hamburger-btn" id="hamburgerBtn" onclick="toggleSidebar()" aria-label="Menu">☰</button>
   <div class="logo">
@@ -1160,6 +1164,9 @@ const HCC_INIT = [{"id":"1E2042","u":"E2042","mo":"PC2000-8","cat":"MAJOR","desc
 
 // ── STATE ──
 let fleet=[], proker=[], hcc=[], hmMap={};
+// Nandain per-dataset apakah lagi pakai data live dari server atau jatuh ke snapshot cadangan (*_INIT).
+// Dipakai buat blokir save() supaya snapshot lama nggak pernah ketimpa ke sheet live, dan buat banner peringatan.
+let usingFallback = { fleet:false, hcc:false, proker:false };
 let selModel=null, selUnit=null;
 let editUnitId=null, editCompId=null, editProkerId=null;
 let hmPrev=null, cfmCb=null;
@@ -1319,7 +1326,9 @@ async function load() {
     if (!json.ok) throw new Error(json.error || 'Response tidak ok');
     const data = json.data;
 
-    fleet = (data.fleet && data.fleet.length) ? data.fleet.map(rowToFleet) : FLEET_INIT.map(u=>({...u}));
+    const fleetLive = !!(data.fleet && data.fleet.length);
+    fleet = fleetLive ? data.fleet.map(rowToFleet) : FLEET_INIT.map(u=>({...u}));
+    usingFallback.fleet = !fleetLive;
 
     hmMap = {};
     (data.fleet || []).forEach(row => {
@@ -1348,26 +1357,43 @@ async function load() {
       });
     } catch(e) {}
 
-    hcc = (data.hcc && data.hcc.length)
+    const hccLive = !!(data.hcc && data.hcc.length);
+    hcc = hccLive
       ? data.hcc.map((row,i) => rowToHcc(row, i, row['Unit']))
       : HCC_INIT.map(r=>({...r}));
+    usingFallback.hcc = !hccLive;
 
-    proker = (data.proker && data.proker.length)
+    const prokerLive = !!(data.proker && data.proker.length);
+    proker = prokerLive
       ? data.proker.map((row,i) => rowToProker(row, i))
       : PROKER_INIT.map(p=>({...p}));
+    usingFallback.proker = !prokerLive;
   } catch (e) {
     console.error('Gagal memuat data dari server:', e);
     fleet  = FLEET_INIT.map(u=>({...u}));
     proker = PROKER_INIT.map(p=>({...p}));
     hcc    = HCC_INIT.map(r=>({...r}));
+    usingFallback = { fleet:true, hcc:true, proker:true };
     // Fallback ke cache localStorage kalau server gagal
     try {
       hmMap = JSON.parse(localStorage.getItem('adw-hm-cache') || '{}');
     } catch(e2) { hmMap = {}; }
   }
+  updateFallbackBanner();
+}
+
+// Tampil/sembunyiin banner peringatan di atas kalau ada dataset yang lagi pakai data cadangan (bukan live).
+function updateFallbackBanner() {
+  const banner = document.getElementById('fallbackBanner');
+  if (!banner) return;
+  banner.style.display = (usingFallback.fleet || usingFallback.hcc || usingFallback.proker) ? 'block' : 'none';
 }
 
 async function save() {
+  if (usingFallback.fleet || usingFallback.hcc) {
+    notify('⚠️ Data Fleet/HCC belum berhasil dimuat dari server (masih pakai data cadangan lama) — perubahan TIDAK disimpan, biar data lama gak nimpa data live. Refresh halaman dulu.', 'err');
+    return false;
+  }
   beginSaving();
   try {
     const ok1 = await apiPost('fleet', fleet.map(fleetToRow));
@@ -1378,6 +1404,10 @@ async function save() {
 }
 
 async function saveP() {
+  if (usingFallback.proker) {
+    notify('⚠️ Data Proker belum berhasil dimuat dari server (masih pakai data cadangan lama) — perubahan TIDAK disimpan, biar data lama gak nimpa data live. Refresh halaman dulu.', 'err');
+    return false;
+  }
   beginSaving();
   try {
     const ok = await apiPost('proker', proker.map(prokerToRow));
@@ -1490,11 +1520,13 @@ function confirmDeleteSelected() {
   if (guardEdit()) return;
   if (unitsToDelete.size === 0) { notify('Pilih unit yang ingin dihapus dulu','err'); return; }
   const codes = [...unitsToDelete];
-  showCfm(`Hapus ${codes.length} Unit?`, `Unit terpilih beserta semua data HCC dan Proker-nya akan dihapus permanen: ${codes.join(', ')}`, () => {
+  showCfm(`Hapus ${codes.length} Unit?`, `Unit terpilih beserta semua data HCC dan Proker-nya akan dihapus permanen: ${codes.join(', ')}`, async () => {
+    const prevFleet = fleet, prevHcc = hcc, prevProker = proker;
     fleet  = fleet.filter(u=>!unitsToDelete.has(u.unitCode));
     hcc    = hcc.filter(r=>!unitsToDelete.has(r.u||r.unitCode));
     proker = proker.filter(p=>!unitsToDelete.has(p.u));
-    save(); saveP();
+    const ok1 = await save(); const ok2 = await saveP();
+    if (!ok1 || !ok2) { fleet=prevFleet; hcc=prevHcc; proker=prevProker; applyFilters(); return; } // batal, save() sudah nunjukin toast error
     if (selUnit && unitsToDelete.has(selUnit)) { selUnit=null; showEmpty(); }
     notify(`${codes.length} unit dihapus`, 'ok');
     toggleDeleteMode();
@@ -1626,11 +1658,13 @@ function gotoUnit(code) {
 
 function delUnit(code) {
   if (guardEdit()) return;
-  showCfm(`Hapus Unit "${code}"?`, 'Unit dan semua HCC-nya dihapus.', () => {
+  showCfm(`Hapus Unit "${code}"?`, 'Unit dan semua HCC-nya dihapus.', async () => {
+    const prevFleet = fleet, prevHcc = hcc, prevProker = proker;
     fleet  = fleet.filter(u=>u.unitCode!==code);
     hcc    = hcc.filter(r=>(r.u||r.unitCode)!==code);
     proker = proker.filter(p=>p.u!==code);
-    save(); saveP();
+    const ok1 = await save(); const ok2 = await saveP();
+    if (!ok1 || !ok2) { fleet=prevFleet; hcc=prevHcc; proker=prevProker; applyFilters(); return; }
     if (selUnit===code) { selUnit=null; showEmpty(); }
     applyFilters();
     notify(`Unit "${code}" dihapus`, 'ok');
@@ -1640,12 +1674,14 @@ function delUnit(code) {
 function delMG(mg) {
   if (guardEdit()) return;
   const units = fleet.filter(u=>(u.modelGroup||u.model)===mg);
-  showCfm(`Hapus Model "${mg}"?`, `Hapus ${units.length} unit beserta HCC-nya?`, () => {
+  showCfm(`Hapus Model "${mg}"?`, `Hapus ${units.length} unit beserta HCC-nya?`, async () => {
     const codes = new Set(units.map(u=>u.unitCode));
+    const prevFleet = fleet, prevHcc = hcc, prevProker = proker;
     fleet  = fleet.filter(u=>(u.modelGroup||u.model)!==mg);
     hcc    = hcc.filter(r=>!codes.has(r.u||r.unitCode));
     proker = proker.filter(p=>!codes.has(p.u));
-    save(); saveP();
+    const ok1 = await save(); const ok2 = await saveP();
+    if (!ok1 || !ok2) { fleet=prevFleet; hcc=prevHcc; proker=prevProker; applyFilters(); return; }
     if (selUnit && codes.has(selUnit)) { selUnit=null; showEmpty(); }
     applyFilters();
     notify(`Model "${mg}" dihapus`, 'ok');
@@ -2285,7 +2321,7 @@ function editProker(pid, code) {
 
 function closeProkerModal() { document.getElementById('prokerModal').classList.remove('open'); }
 
-function saveProker() {
+async function saveProker() {
   if (guardEdit()) return;
   const code     = document.getElementById('fp-unitCode').value;
   const k        = document.getElementById('fp-komponen').value.trim();
@@ -2306,15 +2342,18 @@ function saveProker() {
     rem: document.getElementById('fp-rem').value.trim(),
     plan: null, r1d:null, r1h:null, r2d:null, r2h:null,
   };
+  const prevProker = proker;
+  const isNew = !editProkerId;
   if (editProkerId) {
     const idx = proker.findIndex(p=>p._id===editProkerId&&p.u===code);
-    if (idx>=0) proker[idx]=rec; else proker.push(rec);
-    notify('Proker diupdate!','ok');
+    proker = idx>=0 ? proker.map((p,i)=>i===idx?rec:p) : [...proker, rec];
   } else {
-    proker.push(rec);
-    notify('Proker ditambahkan!','ok');
+    proker = [...proker, rec];
   }
-  saveP(); closeProkerModal();
+  const ok = await saveP();
+  if (!ok) { proker = prevProker; return; } // batal, form tetap kebuka biar bisa coba lagi
+  notify(isNew ? 'Proker ditambahkan!' : 'Proker diupdate!', 'ok');
+  closeProkerModal();
   refreshUnitAfterProkerChange(code);
 }
 // Helper: refresh unit detail while preserving the currently visible tab (info/hcc/proker)
@@ -2337,10 +2376,11 @@ function refreshUnitAfterProkerChange(code) { refreshUnitPreservingTab(code); }
 
 function delProker(pid, code) {
   if (guardEdit()) return;
-  showCfm('Hapus Proker?','Hapus record proker ini?', () => {
-    const idx = proker.findIndex(p=>p._id===pid&&p.u===code);
-    if (idx>=0) proker.splice(idx,1);
-    saveP();
+  showCfm('Hapus Proker?','Hapus record proker ini?', async () => {
+    const prevProker = proker;
+    proker = proker.filter(p=>!(p._id===pid&&p.u===code));
+    const ok = await saveP();
+    if (!ok) { proker = prevProker; return; }
     refreshUnitAfterProkerChange(code);
     notify('Proker dihapus','ok');
   });
@@ -2388,7 +2428,7 @@ function openEditUnit(code) {
   document.getElementById('unitModal').classList.add('open');
 }
 function closeUnitModal() { document.getElementById('unitModal').classList.remove('open'); }
-function saveUnit() {
+async function saveUnit() {
   if (guardEdit()) return;
   const code=document.getElementById('fu-unitCode').value.trim();
   const model=document.getElementById('fu-model').value.trim();
@@ -2412,9 +2452,21 @@ function saveUnit() {
     remark:document.getElementById('fu-remark').value.trim(),
     commissioning:'',autolube:'',fire:'',endWarranty:null,power:'',smr:'',
   };
-  if(editUnitId){const idx=fleet.findIndex(x=>x.unitCode===editUnitId);if(idx>=0)fleet[idx]=u;notify('Unit diupdate!','ok');}
-  else{if(fleet.find(x=>x.unitCode===code)){notify('Unit Code sudah ada!','err');return;}fleet.push(u);notify('Unit ditambahkan!','ok');}
-  save();closeUnitModal();applyFilters();
+  const prevFleet = fleet;
+  const isNew = !editUnitId;
+  if (editUnitId) {
+    const idx = fleet.findIndex(x=>x.unitCode===editUnitId);
+    if (idx<0) return;
+    fleet = fleet.map((x,i)=>i===idx?u:x);
+  } else {
+    if (fleet.find(x=>x.unitCode===code)) { notify('Unit Code sudah ada!','err'); return; }
+    fleet = [...fleet, u];
+  }
+  const ok = await save();
+  if (!ok) { fleet = prevFleet; return; } // batal, form tetap kebuka biar bisa coba lagi
+  notify(isNew ? 'Unit ditambahkan!' : 'Unit diupdate!', 'ok');
+  closeUnitModal();
+  applyFilters();
   if(selUnit===code)renderDetail(code);
 }
 
@@ -2467,7 +2519,7 @@ document.getElementById('fc-hmRemove').addEventListener('input', function() {
   document.getElementById('fc-lifeTime').value=(!isNaN(hi)&&!isNaN(hr))?(hr-hi).toFixed(1):'';
 });
 function closeCompModal() { document.getElementById('compModal').classList.remove('open'); }
-function saveComp() {
+async function saveComp() {
   if (guardEdit()) return;
   const code=document.getElementById('fc-unitCode').value.trim();
   const desc=document.getElementById('fc-desc').value.trim();
@@ -2495,16 +2547,29 @@ function saveComp() {
     po:document.getElementById('fc-po').value.trim(),
     rm:document.getElementById('fc-remark').value.trim(),remark:document.getElementById('fc-remark').value.trim(),
   };
-  if(editCompId){const idx=hcc.findIndex(x=>(x.id||'')===editCompId);if(idx>=0)hcc[idx]=rec;else hcc.push(rec);notify('Komponen diupdate!','ok');}
-  else{hcc.push(rec);notify('Komponen ditambahkan!','ok');}
-  save();closeCompModal();refreshUnitPreservingTab(code);
+  const prevHcc = hcc;
+  const isNew = !editCompId;
+  if (editCompId) {
+    const idx = hcc.findIndex(x=>(x.id||'')===editCompId);
+    hcc = idx>=0 ? hcc.map((x,i)=>i===idx?rec:x) : [...hcc, rec];
+  } else {
+    hcc = [...hcc, rec];
+  }
+  const ok = await save();
+  if (!ok) { hcc = prevHcc; return; } // batal, form tetap kebuka biar bisa coba lagi
+  notify(isNew ? 'Komponen ditambahkan!' : 'Komponen diupdate!', 'ok');
+  closeCompModal();
+  refreshUnitPreservingTab(code);
 }
 function delHcc(id, code) {
   if (guardEdit()) return;
-  showCfm('Hapus Record?','Hapus record komponen ini?', () => {
-    const idx=hcc.findIndex(x=>(x.id||'')===id);
-    if(idx>=0)hcc.splice(idx,1);
-    save();refreshUnitPreservingTab(code);notify('Record dihapus','ok');
+  showCfm('Hapus Record?','Hapus record komponen ini?', async () => {
+    const prevHcc = hcc;
+    hcc = hcc.filter(x=>(x.id||'')!==id);
+    const ok = await save();
+    if (!ok) { hcc = prevHcc; return; }
+    refreshUnitPreservingTab(code);
+    notify('Record dihapus','ok');
   });
 }
 
@@ -2773,7 +2838,14 @@ function renderSavedHm(){
       <td><button class="btn btn-red btn-sm" data-del-hm="${u}">✕</button></td></tr>`).join('')}
     </tbody></table></div>`;
   el.querySelectorAll('[data-del-hm]').forEach(btn => {
-    btn.onclick = async () => { delete hmMap[btn.dataset.delHm]; renderSavedHm(); renderHmBar(); if(selUnit===btn.dataset.delHm)renderDetail(selUnit); renderUnitList(); await save(); };
+    btn.onclick = async () => {
+      const key = btn.dataset.delHm;
+      const prevEntry = hmMap[key];
+      delete hmMap[key];
+      renderSavedHm(); renderHmBar(); if(selUnit===key)renderDetail(selUnit); renderUnitList();
+      const ok = await save();
+      if (!ok) { hmMap[key] = prevEntry; renderSavedHm(); renderHmBar(); if(selUnit===key)renderDetail(selUnit); renderUnitList(); }
+    };
   });
 }
 
