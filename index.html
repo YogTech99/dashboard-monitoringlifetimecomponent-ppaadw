@@ -1396,9 +1396,46 @@ async function save() {
   }
   beginSaving();
   try {
-    const ok1 = await apiPost('fleet', fleet.map(fleetToRow));
-    const ok2 = await apiPost('hcc', hcc.map(hccToRow));
+    // Kirim fleet & hcc BERSAMAAN (paralel) — dua request independen ke sheet berbeda,
+    // jadi gak perlu nunggu satu selesai baru mulai yang lain (sebelumnya sequential await,
+    // artinya waktu tunggu = jumlah keduanya; sekarang = yang paling lambat aja).
+    const [ok1, ok2] = await Promise.all([
+      apiPost('fleet', fleet.map(fleetToRow)),
+      apiPost('hcc', hcc.map(hccToRow))
+    ]);
     if (!ok1 || !ok2) { notify('Gagal menyimpan data ke server! Coba lagi.', 'err'); return false; }
+    return true;
+  } finally { endSaving(); }
+}
+
+// Versi ringan: HANYA kirim sheet 'fleet'. Dipakai saat yang berubah cuma data unit
+// (edit info unit, update HM) — supaya gak ikut kirim ulang seluruh HCC (jauh lebih
+// besar datanya, mencakup semua komponen semua unit) padahal isinya gak berubah.
+async function saveFleetOnly() {
+  if (usingFallback.fleet) {
+    notify('⚠️ Data Fleet belum berhasil dimuat dari server (masih pakai data cadangan lama) — perubahan TIDAK disimpan, biar data lama gak nimpa data live. Refresh halaman dulu.', 'err');
+    return false;
+  }
+  beginSaving();
+  try {
+    const ok = await apiPost('fleet', fleet.map(fleetToRow));
+    if (!ok) { notify('Gagal menyimpan data ke server! Coba lagi.', 'err'); return false; }
+    return true;
+  } finally { endSaving(); }
+}
+
+// Versi ringan: HANYA kirim sheet 'hcc'. Dipakai saat yang berubah cuma 1 baris
+// komponen (tambah/edit/hapus HCC) — supaya gak ikut kirim ulang seluruh Fleet
+// padahal isinya gak berubah.
+async function saveHccOnly() {
+  if (usingFallback.hcc) {
+    notify('⚠️ Data HCC belum berhasil dimuat dari server (masih pakai data cadangan lama) — perubahan TIDAK disimpan, biar data lama gak nimpa data live. Refresh halaman dulu.', 'err');
+    return false;
+  }
+  beginSaving();
+  try {
+    const ok = await apiPost('hcc', hcc.map(hccToRow));
+    if (!ok) { notify('Gagal menyimpan data ke server! Coba lagi.', 'err'); return false; }
     return true;
   } finally { endSaving(); }
 }
@@ -1525,7 +1562,7 @@ function confirmDeleteSelected() {
     fleet  = fleet.filter(u=>!unitsToDelete.has(u.unitCode));
     hcc    = hcc.filter(r=>!unitsToDelete.has(r.u||r.unitCode));
     proker = proker.filter(p=>!unitsToDelete.has(p.u));
-    const ok1 = await save(); const ok2 = await saveP();
+    const [ok1, ok2] = await Promise.all([save(), saveP()]);
     if (!ok1 || !ok2) { fleet=prevFleet; hcc=prevHcc; proker=prevProker; applyFilters(); return; } // batal, save() sudah nunjukin toast error
     if (selUnit && unitsToDelete.has(selUnit)) { selUnit=null; showEmpty(); }
     notify(`${codes.length} unit dihapus`, 'ok');
@@ -1663,7 +1700,7 @@ function delUnit(code) {
     fleet  = fleet.filter(u=>u.unitCode!==code);
     hcc    = hcc.filter(r=>(r.u||r.unitCode)!==code);
     proker = proker.filter(p=>p.u!==code);
-    const ok1 = await save(); const ok2 = await saveP();
+    const [ok1, ok2] = await Promise.all([save(), saveP()]);
     if (!ok1 || !ok2) { fleet=prevFleet; hcc=prevHcc; proker=prevProker; applyFilters(); return; }
     if (selUnit===code) { selUnit=null; showEmpty(); }
     applyFilters();
@@ -1680,7 +1717,7 @@ function delMG(mg) {
     fleet  = fleet.filter(u=>(u.modelGroup||u.model)!==mg);
     hcc    = hcc.filter(r=>!codes.has(r.u||r.unitCode));
     proker = proker.filter(p=>!codes.has(p.u));
-    const ok1 = await save(); const ok2 = await saveP();
+    const [ok1, ok2] = await Promise.all([save(), saveP()]);
     if (!ok1 || !ok2) { fleet=prevFleet; hcc=prevHcc; proker=prevProker; applyFilters(); return; }
     if (selUnit && codes.has(selUnit)) { selUnit=null; showEmpty(); }
     applyFilters();
@@ -2020,25 +2057,36 @@ function renderHccTab(code, q='', cat='', st='') {
     return true;
   });
 
-  // Apply sort
-  if (hccSort.col) {
-    const dir = hccSort.dir === 'asc' ? 1 : -1;
-    rows = [...rows].sort((a, b) => {
-      if (hccSort.col === 'deskripsi') {
-        const da = (a.desc||a.compDesc||'').toLowerCase(), db = (b.desc||b.compDesc||'').toLowerCase();
-        return dir * da.localeCompare(db);
-      }
-      if (hccSort.col === 'posisi') {
-        const pa = fmtPos(a)||'-', pb = fmtPos(b)||'-';
-        return dir * pa.localeCompare(pb);
-      }
-      if (hccSort.col === 'tglinstall') {
-        const da = a.dt||a.dateInstalled||'', db = b.dt||b.dateInstalled||'';
-        return dir * da.localeCompare(db);
-      }
-      return 0;
-    });
-  }
+  // Urutan tampil SELALU dikelompokkan 3 tingkat dulu: aktif > belum update (HM Install
+  // masih 0) > sudah diganti (closed, baik auto-close maupun hr manual). Di dalam tiap
+  // kelompok baru diurutkan lagi sesuai kolom yang diklik user (kalau ada).
+  const dir = hccSort.dir === 'asc' ? 1 : -1;
+  rows = [...rows].sort((a, b) => {
+    const ta = hccTier(a, autoCloseMap), tb = hccTier(b, autoCloseMap);
+    if (ta !== tb) return ta - tb;
+    if (!hccSort.col) return 0;
+    if (hccSort.col === 'kat') {
+      const ca = (a.cat||a.compCategory||''), cb = (b.cat||b.compCategory||'');
+      return dir * ca.localeCompare(cb);
+    }
+    if (hccSort.col === 'deskripsi') {
+      const da = (a.desc||a.compDesc||'').toLowerCase(), db = (b.desc||b.compDesc||'').toLowerCase();
+      return dir * da.localeCompare(db);
+    }
+    if (hccSort.col === 'posisi') {
+      const pa = fmtPos(a)||'-', pb = fmtPos(b)||'-';
+      return dir * pa.localeCompare(pb);
+    }
+    if (hccSort.col === 'tglinstall') {
+      const da = a.dt||a.dateInstalled||'', db = b.dt||b.dateInstalled||'';
+      return dir * da.localeCompare(db);
+    }
+    if (hccSort.col === 'hminstall') {
+      const ha = a.hi??a.hmInstall??0, hb = b.hi??b.hmInstall??0;
+      return dir * (ha - hb);
+    }
+    return 0;
+  });
 
   const curHm = hmMap[code]?.hm;
   const el = document.getElementById('hBody'); if (!el) return;
@@ -2053,11 +2101,12 @@ function renderHccTab(code, q='', cat='', st='') {
 
   el.innerHTML = `<div class="tw"><table class="htbl">
     <thead><tr>
-      <th>Kat</th>
+      ${thSort('Kat','kat')}
       ${thSort('Deskripsi','deskripsi')}
       ${thSort('Posisi','posisi')}
       ${thSort('Tgl Install','tglinstall')}
-      <th>HM Install</th><th>HM Update</th><th>Lifetime</th><th>Target LT</th><th>Exc</th><th>Sts</th><th>Remark</th><th>Aksi</th>
+      ${thSort('HM Install','hminstall')}
+      <th>HM Update</th><th>Lifetime</th><th>Target LT</th><th>Exc</th><th>Sts</th><th>Remark</th><th>Aksi</th>
     </tr></thead>
     <tbody>${rows.map(r => {
       const ac = autoCloseMap.get(r) || { isClosed: false, closedAtHm: null };
@@ -2462,7 +2511,7 @@ async function saveUnit() {
     if (fleet.find(x=>x.unitCode===code)) { notify('Unit Code sudah ada!','err'); return; }
     fleet = [...fleet, u];
   }
-  const ok = await save();
+  const ok = await saveFleetOnly();
   if (!ok) { fleet = prevFleet; return; } // batal, form tetap kebuka biar bisa coba lagi
   notify(isNew ? 'Unit ditambahkan!' : 'Unit diupdate!', 'ok');
   closeUnitModal();
@@ -2555,7 +2604,7 @@ async function saveComp() {
   } else {
     hcc = [...hcc, rec];
   }
-  const ok = await save();
+  const ok = await saveHccOnly();
   if (!ok) { hcc = prevHcc; return; } // batal, form tetap kebuka biar bisa coba lagi
   notify(isNew ? 'Komponen ditambahkan!' : 'Komponen diupdate!', 'ok');
   closeCompModal();
@@ -2566,7 +2615,7 @@ function delHcc(id, code) {
   showCfm('Hapus Record?','Hapus record komponen ini?', async () => {
     const prevHcc = hcc;
     hcc = hcc.filter(x=>(x.id||'')!==id);
-    const ok = await save();
+    const ok = await saveHccOnly();
     if (!ok) { hcc = prevHcc; return; }
     refreshUnitPreservingTab(code);
     notify('Record dihapus','ok');
@@ -2709,8 +2758,9 @@ async function applyHm(){
   try { localStorage.setItem('adw-hm-cache', JSON.stringify(hmMap)); } catch(e){}
   notify('Menyimpan HM ke server, mohon tunggu...', 'ok');
   try {
-    const ok1 = await save();   // kirim fleet (termasuk HM Terkini) + hcc
-    const ok2 = await saveP();  // kirim proker juga supaya semua sync
+    // hcc gak berubah di flow ini (HM cuma ubah data fleet), jadi cukup fleet + proker,
+    // dikirim BERSAMAAN — bukan gantian nunggu satu-satu
+    const [ok1, ok2] = await Promise.all([saveFleetOnly(), saveP()]);
     if (ok1 && ok2) {
       notify('✓ HM berhasil disimpan ke server!', 'ok');
     } else {
@@ -2811,8 +2861,7 @@ async function applyManualHm() {
   try { localStorage.setItem('adw-hm-cache', JSON.stringify(hmMap)); } catch(e){}
   notify('Menyimpan HM ke server, mohon tunggu...', 'ok');
   try {
-    const ok1 = await save();
-    const ok2 = await saveP();
+    const [ok1, ok2] = await Promise.all([saveFleetOnly(), saveP()]);
     if (ok1 && ok2) notify('✓ HM manual berhasil disimpan ke server!', 'ok');
     else notify('⚠ Gagal simpan ke server! Coba lagi.', 'err');
   } catch(e) {
@@ -2843,7 +2892,7 @@ function renderSavedHm(){
       const prevEntry = hmMap[key];
       delete hmMap[key];
       renderSavedHm(); renderHmBar(); if(selUnit===key)renderDetail(selUnit); renderUnitList();
-      const ok = await save();
+      const ok = await saveFleetOnly();
       if (!ok) { hmMap[key] = prevEntry; renderSavedHm(); renderHmBar(); if(selUnit===key)renderDetail(selUnit); renderUnitList(); }
     };
   });
@@ -3019,6 +3068,16 @@ function isHccRunning(r, autoCloseMap) {
   const ac = autoCloseMap.get(r);
   if (ac) return !ac.isClosed && (r.hr??r.hmRemove)==='Running';
   return (r.hr??r.hmRemove)==='Running';
+}
+// Klasifikasi baris HCC jadi 3 tingkat buat urutan tampil (dipakai di renderHccTab):
+// 0 = aktif (running, sudah ada data HM Install asli)
+// 1 = belum update (running tapi HM Install masih 0 / kosong — placeholder)
+// 2 = sudah diganti (closed — baik auto-close karena ada record lebih baru, maupun hr manual)
+function hccTier(r, autoCloseMap) {
+  if (!isHccRunning(r, autoCloseMap)) return 2;
+  const hi = r.hi ?? r.hmInstall;
+  if (hi == null || hi === 0) return 1;
+  return 0;
 }
 function notify(msg,type='ok'){
   const el=document.createElement('div');el.className=`nitem ${type}`;
