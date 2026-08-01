@@ -129,7 +129,7 @@ tr:last-child td{border-bottom:none}
 /* TABLE COLUMN WIDTHS */
 .htbl{table-layout:fixed;width:100%}
 .htbl th:nth-child(1){width:52px}  /* kat */
-.htbl th:nth-child(2){width:155px} /* deskripsi */
+.htbl th:nth-child(2){width:145px} /* deskripsi */
 .htbl th:nth-child(3){width:50px}  /* posisi */
 .htbl th:nth-child(4){width:80px}  /* tgl install */
 .htbl th:nth-child(5){width:66px}  /* hm install */
@@ -137,9 +137,10 @@ tr:last-child td{border-bottom:none}
 .htbl th:nth-child(7){width:70px}  /* lifetime */
 .htbl th:nth-child(8){width:68px}  /* target lt */
 .htbl th:nth-child(9){width:42px}  /* exc */
-.htbl th:nth-child(10){width:32px} /* sts */
-.htbl th:nth-child(11){width:auto} /* remark */
-.htbl th:nth-child(12){width:80px} /* aksi */
+.htbl th:nth-child(10){width:74px} /* status (overdue/caution/normal/done) */
+.htbl th:nth-child(11){width:32px} /* sts */
+.htbl th:nth-child(12){width:auto} /* remark */
+.htbl th:nth-child(13){width:80px} /* aksi */
 .htbl td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
 .htbl th{font-size:9.5px}
 
@@ -819,8 +820,7 @@ body.viewer-mode .viewer-badge{display:inline-flex}
         <span id="dkChevron" style="transition:transform .15s">▾</span>
       </button>
       <div id="dkSubmenu" style="display:none;flex-direction:column;gap:4px;margin-top:6px">
-        <button class="btn btn-outline btn-sm" style="width:100%;font-size:10.5px;justify-content:flex-start" onclick="openGlobalData('hcc')">📋 General Data HCC</button>
-        <button class="btn btn-outline btn-sm" style="width:100%;font-size:10.5px;justify-content:flex-start" onclick="openGlobalData('prok')">⚙ General Data Proker</button>
+        <button class="btn btn-outline btn-sm" style="width:100%;font-size:10.5px;justify-content:flex-start" onclick="openGlobalData()">📋⚙ General Data HCC & Proker</button>
       </div>
     </div>
     <div class="sf-wrap">
@@ -864,7 +864,7 @@ body.viewer-mode .viewer-badge{display:inline-flex}
     <button class="back-btn" onclick="closeGlobalData()">← Kembali</button>
     <div class="gd-title">Data Komponen</div>
     <div class="gd-tabs">
-      <button class="gd-tab-btn active" id="gdActiveTabLabel">📋 General Data HCC</button>
+      <button class="gd-tab-btn active" id="gdActiveTabLabel">📋⚙ General Data HCC & Proker</button>
     </div>
   </div>
 
@@ -1171,7 +1171,8 @@ let usingFallback = { fleet:false, hcc:false, proker:false };
 let selModel=null, selUnit=null;
 let editUnitId=null, editCompId=null, editProkerId=null;
 let hmPrev=null, cfmCb=null;
-let hccSort={col:null, dir:'asc'}; // sort state for HCC table
+let hccSort={col:null, dir:'asc'}; // sort state for HCC table (dipakai tabel General Data lama, dibiarkan biar aman)
+let hpSort={col:null, dir:'asc'};  // sort state for per-unit HCC & Proker table gabungan
 let gdSort={col:null, dir:'asc'};  // sort state for General Data (HCC & Proker) table
 
 // ── ROLE / ACCESS CONTROL ──
@@ -1954,32 +1955,22 @@ function renderDetail(code) {
       </div>`:''}
     </div>
 
-    <!-- HCC & PROKER TAB (digabung) -->
+    <!-- HCC & PROKER TAB (satu tabel gabungan, format ngikutin HCC) -->
     <div id="tab-hcc-proker" style="display:none">
-      <div class="sec-title" style="margin-top:0">📋 HCC <span class="sec-cnt">${uHcc.length}</span></div>
       <div class="frow">
-        <input placeholder="Cari komponen..." id="hSrch" oninput="filterHcc()">
-        <select id="hCat" onchange="filterHcc()" style="background:var(--s2);border:1px solid var(--bd);color:var(--t1);padding:5px 8px;border-radius:6px;font-size:11px">
+        <input placeholder="Cari komponen..." id="hpSrch" oninput="filterHccProker()">
+        <select id="hpCat" onchange="filterHccProker()" style="background:var(--s2);border:1px solid var(--bd);color:var(--t1);padding:5px 8px;border-radius:6px;font-size:11px">
           <option value="">Semua Kat</option><option>MAJOR</option><option>MINOR</option>
         </select>
-        <select id="hSt" onchange="filterHcc()" style="background:var(--s2);border:1px solid var(--bd);color:var(--t1);padding:5px 8px;border-radius:6px;font-size:11px">
-          <option value="">Semua</option><option>Running</option><option>Done</option>
+        <select id="hpSt" onchange="filterHccProker()" style="background:var(--s2);border:1px solid var(--bd);color:var(--t1);padding:5px 8px;border-radius:6px;font-size:11px">
+          <option value="">Semua Status</option><option value="overdue">Overdue</option><option value="caution">Caution</option><option value="normal">Normal</option><option value="done">Done</option>
         </select>
-        <button class="btn btn-gold btn-sm edit-action" id="btnAddComp2">+ Tambah</button>
-        <button class="btn btn-outline btn-sm" id="btnExportHcc">⬇</button>
+        <button class="btn btn-gold btn-sm edit-action" id="btnAddComp2">+ HCC</button>
+        <button class="btn btn-gold btn-sm edit-action" id="btnAddProk">+ Proker</button>
+        <button class="btn btn-outline btn-sm" id="btnExportHcc">⬇ HCC</button>
+        <button class="btn btn-outline btn-sm" id="btnExportProker">⬇ Proker</button>
       </div>
-      <div id="hBody"></div>
-
-      <div class="sec-title">⚙ Proker <span class="sec-cnt">${uProker.length}</span></div>
-      <div class="frow">
-        <input placeholder="Cari komponen..." id="pSrch" oninput="filterProk()">
-        <select id="pSt" onchange="filterProk()" style="background:var(--s2);border:1px solid var(--bd);color:var(--t1);padding:5px 8px;border-radius:6px;font-size:11px">
-          <option value="">Semua</option><option value="Overdue">Overdue</option><option value="Caution">Caution</option><option value="Normal">Normal</option><option value="Done">Done</option>
-        </select>
-        <button class="btn btn-gold btn-sm edit-action" id="btnAddProk">+ Tambah</button>
-        <button class="btn btn-outline btn-sm" id="btnExportProker">⬇</button>
-      </div>
-      <div id="pBody"></div>
+      <div id="hpBody"></div>
     </div>
   </div>`;
 
@@ -2020,27 +2011,26 @@ function renderDetail(code) {
     }
   });
 
-  renderHccTab(code);
-  renderProkerTab(code);
+  renderHccProkerTab(code);
 }
 
-// ── HCC TABLE ──
-function filterHcc() {
+// ── HCC & PROKER TABLE (gabungan jadi 1 tabel, format kolom ngikutin HCC) ──
+function filterHccProker() {
   if (!selUnit) return;
-  const q   = document.getElementById('hSrch')?.value||'';
-  const cat = document.getElementById('hCat')?.value||'';
-  const st  = document.getElementById('hSt')?.value||'';
-  renderHccTab(selUnit, q, cat, st);
+  const q   = document.getElementById('hpSrch')?.value||'';
+  const cat = document.getElementById('hpCat')?.value||'';
+  const st  = document.getElementById('hpSt')?.value||'';
+  renderHccProkerTab(selUnit, q, cat, st);
 }
 
-function hccSortBy(col) {
-  if (hccSort.col === col) {
-    hccSort.dir = hccSort.dir === 'asc' ? 'desc' : 'asc';
+function hpSortBy(col) {
+  if (hpSort.col === col) {
+    hpSort.dir = hpSort.dir === 'asc' ? 'desc' : 'asc';
   } else {
-    hccSort.col = col;
-    hccSort.dir = 'asc';
+    hpSort.col = col;
+    hpSort.dir = 'asc';
   }
-  filterHcc();
+  filterHccProker();
 }
 
 function gdSortBy(col) {
@@ -2051,116 +2041,6 @@ function gdSortBy(col) {
     gdSort.dir = 'asc';
   }
   renderGlobalData();
-}
-
-function renderHccTab(code, q='', cat='', st='') {
-  const autoCloseMap = getHccAutoCloseMap(code);
-
-  let rows = hcc.filter(r => {
-    if ((r.u||r.unitCode)!==code) return false;
-    const c  = r.cat||r.compCategory||'';
-    const effectivelyRunning = isHccRunning(r, autoCloseMap);
-    if (cat && c!==cat) return false;
-    if (st==='Running' && !effectivelyRunning) return false;
-    if (st==='Done'    && effectivelyRunning) return false;
-    if (q && !(r.desc||r.compDesc||'').toLowerCase().includes(q.toLowerCase())) return false;
-    return true;
-  });
-
-  // Urutan tampil SELALU dikelompokkan 3 tingkat dulu: aktif > belum update (HM Install
-  // masih 0) > sudah diganti (closed, baik auto-close maupun hr manual). Di dalam tiap
-  // kelompok baru diurutkan lagi sesuai kolom yang diklik user (kalau ada).
-  const dir = hccSort.dir === 'asc' ? 1 : -1;
-  rows = [...rows].sort((a, b) => {
-    const ta = hccTier(a, autoCloseMap), tb = hccTier(b, autoCloseMap);
-    if (ta !== tb) return ta - tb;
-    if (!hccSort.col) return 0;
-    if (hccSort.col === 'kat') {
-      const ca = (a.cat||a.compCategory||''), cb = (b.cat||b.compCategory||'');
-      return dir * ca.localeCompare(cb);
-    }
-    if (hccSort.col === 'deskripsi') {
-      const da = (a.desc||a.compDesc||'').toLowerCase(), db = (b.desc||b.compDesc||'').toLowerCase();
-      return dir * da.localeCompare(db);
-    }
-    if (hccSort.col === 'posisi') {
-      const pa = fmtPos(a)||'-', pb = fmtPos(b)||'-';
-      return dir * pa.localeCompare(pb);
-    }
-    if (hccSort.col === 'tglinstall') {
-      const da = a.dt||a.dateInstalled||'', db = b.dt||b.dateInstalled||'';
-      return dir * da.localeCompare(db);
-    }
-    if (hccSort.col === 'hminstall') {
-      const ha = a.hi??a.hmInstall??0, hb = b.hi??b.hmInstall??0;
-      return dir * (ha - hb);
-    }
-    return 0;
-  });
-
-  const curHm = hmMap[code]?.hm;
-  const el = document.getElementById('hBody'); if (!el) return;
-  if (!rows.length) { el.innerHTML='<div class="empty"><p>Tidak ada record HCC</p></div>'; return; }
-
-  // Build sortable header cells
-  const thSort = (label, col) => {
-    const active = hccSort.col === col;
-    const dirCls = active ? hccSort.dir : '';
-    return `<th class="th-sort ${dirCls}" onclick="hccSortBy('${col}')">${label}<span class="sort-icon"></span></th>`;
-  };
-
-  el.innerHTML = `<div class="tw"><table class="htbl">
-    <thead><tr>
-      ${thSort('Kat','kat')}
-      ${thSort('Deskripsi','deskripsi')}
-      ${thSort('Posisi','posisi')}
-      ${thSort('Tgl Install','tglinstall')}
-      ${thSort('HM Install','hminstall')}
-      <th>HM Update</th><th>Lifetime</th><th>Target LT</th><th>Exc</th><th>Sts</th><th>Remark</th><th>Aksi</th>
-    </tr></thead>
-    <tbody>${rows.map(r => {
-      const ac = autoCloseMap.get(r) || { isClosed: false, closedAtHm: null };
-      const isRun = !ac.isClosed && (r.hr??r.hmRemove)==='Running';
-      const isAutoClosed = ac.isClosed;
-      const hi = r.hi??r.hmInstall;
-      const hr = r.hr??r.hmRemove;
-      const lt = r.lt??r.lifeTime;
-      const age = isRun&&curHm&&hi!=null ? Math.round(curHm-hi) : null;
-      const isMaj = (r.cat||r.compCategory||'')==='MAJOR';
-      // HM Update: auto-closed → HM saat digantikan; Running → HM live unit; selesai manual → nilai tersimpan
-      const hmUpd = isAutoClosed ? fmtN(ac.closedAtHm) : (isRun ? (curHm ? fmtN(curHm) : '-') : fmtN(hr));
-      // Lifetime: auto-closed → selisih hmInstall ke closedAtHm; running → age live; lainnya → nilai tersimpan
-      const ltDisplay = isAutoClosed && hi!=null && ac.closedAtHm!=null
-        ? fmtN(Math.max(0, ac.closedAtHm - hi))
-        : (age!=null ? `<b style="color:var(--gold)">${age.toLocaleString()} h↑</b>` : fmtN(lt));
-      // Target LT: from direct field on record, fallback to proker lookup
-      const targetLt = r.targetLt != null ? fmtN(r.targetLt) : (() => {
-        const pk = proker.find(p=>p.u===(r.u||r.unitCode) && p.k && (r.desc||r.compDesc||'').toLowerCase().includes((p.k||'').toLowerCase().slice(0,10)));
-        return pk?.std ? fmtN(pk.std) : '-';
-      })();
-      // Exc chip
-      const exc = r.exc||'';
-      const excChip = exc==='BUS' ? `<span class="chip" style="background:rgba(59,130,246,.18);color:#60a5fa;font-size:9px">BUS</span>`
-                    : exc==='BS'  ? `<span class="chip" style="background:rgba(168,85,247,.18);color:#c084fc;font-size:9px">BS</span>`
-                    : '-';
-      return `<tr${isAutoClosed?' style="opacity:.6"':''}>
-        <td><span class="chip ${isMaj?'ch-major':'ch-minor'}">${r.cat||r.compCategory||''}</span></td>
-        <td title="${r.desc||r.compDesc||''}">${r.desc||r.compDesc||''}</td>
-        <td style="text-align:center">${fmtPos(r)}</td>
-        <td>${fmtDate(r.dt||r.dateInstalled)}</td>
-        <td>${fmtN(hi)}</td>
-        <td style="text-align:center">${isRun?`<span style="color:var(--green);font-weight:600">${hmUpd}</span>`:hmUpd}</td>
-        <td>${ltDisplay}${isAutoClosed?' <span class="chip" style="background:rgba(148,163,184,.18);color:#94a3b8;font-size:9px;padding:1px 6px">Selesai</span>':''}</td>
-        <td style="color:var(--t1);font-weight:700;text-align:center">${targetLt}</td>
-        <td style="text-align:center">${excChip}</td>
-        <td style="font-size:10px">${r.st||r.status||''}</td>
-        <td title="${r.rm||r.remark||''}">${r.rm||r.remark||''}</td>
-        <td><div class="tbl-acts">
-          <button class="btn btn-outline btn-xs edit-action" data-edit-hcc="${r.id||''}">Edit</button>
-          <button class="btn btn-red btn-xs edit-action"     data-del-hcc="${r.id||''}">Hapus</button>
-        </div></td>
-      </tr>`;
-    }).join('')}</tbody></table></div>`;
 }
 
 // ── PROKER TABLE ──
@@ -2186,164 +2066,98 @@ function getModelProkerTemplate(code) {
   return [...byKey.values()];
 }
 
-function filterProk() {
-  if (!selUnit) return;
-  const q  = document.getElementById('pSrch')?.value||'';
-  const st = document.getElementById('pSt')?.value||'';
-  renderProkerTab(selUnit, q, st);
-}
+function renderHccProkerTab(code, q='', cat='', st='') {
+  const unitHcc    = hcc.filter(r => (r.u||r.unitCode)===code);
+  const unitProker = proker.filter(p => p.u===code);
+  const allRows = buildCombinedRows(unitHcc, unitProker);
 
-function renderProkerTab(code, q='', st='') {
-  const allProker = proker.filter(p => p.u===code);
-  const curHmPre = hmMap[code]?.hm;
-
-  // Build lookup: for same description, find next record's hmInstall (to auto-close prev records)
-  // Group by normalized description key
-  const byDesc = {};
-  allProker.forEach(p => {
-    const key = (p.k||'').trim().toLowerCase();
-    if (!byDesc[key]) byDesc[key] = [];
-    byDesc[key].push(p);
-  });
-  // Sort each group by HM Install ascending
-  Object.values(byDesc).forEach(grp => grp.sort((a,b) => (a.hmInstall||0)-(b.hmInstall||0)));
-
-  // Build a map: _id → effectiveHmRemove (hmInstall of next record, null if latest)
-  const effectiveHmRemove = {};
-  Object.values(byDesc).forEach(grp => {
-    for (let i=0; i<grp.length; i++) {
-      if (i < grp.length-1) {
-        // Not the latest — closed by next record's HM Install
-        effectiveHmRemove[grp[i]._id] = grp[i+1].hmInstall;
-      } else {
-        effectiveHmRemove[grp[i]._id] = null; // latest = still active
-      }
-    }
-  });
-
-  // Pre-compute status for every record (needed before filtering)
-  const statusMap = {};
-  allProker.forEach(p => {
-    const hmRemoveNext = effectiveHmRemove[p._id];
-    const isClosed = hmRemoveNext != null;
-    let ltUpd;
-    if (isClosed && p.hmInstall != null && hmRemoveNext != null) ltUpd = Math.max(0, hmRemoveNext - p.hmInstall);
-    else if (!isClosed && p.hmInstall != null && curHmPre != null) ltUpd = Math.max(0, curHmPre - p.hmInstall);
-    else ltUpd = p.lt;
-    const std = p.std;
-    const isOverdue = !isClosed && std && ltUpd!=null && ltUpd > std;
-    const isCaution = !isClosed && !isOverdue && std && ltUpd!=null && (std-ltUpd) < 750;
-    let label = 'Normal';
-    if (isClosed) label = 'Done';
-    else if (isOverdue) label = 'Overdue';
-    else if (isCaution) label = 'Caution';
-    statusMap[p._id] = label;
-  });
-
-  const rows = allProker.filter(p => {
-    if (st && statusMap[p._id] !== st) return false;
-    if (q && !(p.k||'').toLowerCase().includes(q.toLowerCase())) return false;
+  let rows = allRows.filter(r => {
+    if (cat && r._cat !== cat) return false;
+    if (st  && r._st  !== st)  return false;
+    if (q   && !(r._desc||'').toLowerCase().includes(q.toLowerCase())) return false;
     return true;
   });
 
-  // Activity dari model yang sama yang belum ada datanya di unit ini — cuma tampil kalau
-  // tidak lagi filter status tertentu (Overdue/Caution/dst tidak relevan buat data kosong).
-  const existingKeys = new Set(allProker.map(p => (p.k||'').trim().toLowerCase()));
-  let missing = st ? [] : getModelProkerTemplate(code).filter(t => !existingKeys.has((t.k||'').trim().toLowerCase()));
+  const rankSt = {overdue:0, caution:1, normal:2, done:3};
+  if (hpSort.col) {
+    const dir = hpSort.dir === 'asc' ? 1 : -1;
+    const cmpNum = (va, vb) => { if (va==null && vb==null) return 0; if (va==null) return 1; if (vb==null) return -1; return dir*(va-vb); };
+    const cmpStr = (va, vb) => dir * (va||'').localeCompare(vb||'', undefined, {numeric:true, sensitivity:'base'});
+    rows = [...rows].sort((a,b) => {
+      switch (hpSort.col) {
+        case 'kat':        return cmpStr(a._cat, b._cat);
+        case 'deskripsi':  return cmpStr(a._desc, b._desc);
+        case 'tglinstall': return cmpNum(dateSortVal(a._tglInstall), dateSortVal(b._tglInstall));
+        case 'hminstall':  return cmpNum(a._hmInstall, b._hmInstall);
+        case 'lifetime':   return cmpNum(a._lifetime, b._lifetime);
+        case 'targetlt':   return cmpNum(a._targetLt, b._targetLt);
+        case 'status':     return dir * ((rankSt[a._st]??4) - (rankSt[b._st]??4));
+        default: return 0;
+      }
+    });
+  } else {
+    // Default: yang paling butuh perhatian muncul duluan (Overdue > Caution > Normal > Done)
+    rows = [...rows].sort((a,b) => (rankSt[a._st]??4) - (rankSt[b._st]??4));
+  }
+
+  // Activity dari model yang sama yang belum ada datanya di unit ini (khusus Proker) — cuma
+  // tampil kalau tidak lagi filter kategori/status tertentu (nggak relevan buat data kosong).
+  const existingKeys = new Set(unitProker.map(p => (p.k||'').trim().toLowerCase()));
+  let missing = (st || cat) ? [] : getModelProkerTemplate(code).filter(t => !existingKeys.has((t.k||'').trim().toLowerCase()));
   if (q) missing = missing.filter(t => (t.k||'').toLowerCase().includes(q.toLowerCase()));
 
-  const el = document.getElementById('pBody'); if (!el) return;
-  if (!rows.length && !missing.length) { el.innerHTML='<div class="empty"><p>Tidak ada data proker</p></div>'; return; }
+  const el = document.getElementById('hpBody'); if (!el) return;
+  if (!rows.length && !missing.length) { el.innerHTML='<div class="empty"><p>Tidak ada data HCC/Proker</p></div>'; return; }
 
-  const curHm = curHmPre;
-  const mo2=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  const thSort = (label, col) => {
+    const active = hpSort.col === col;
+    const dirCls = active ? hpSort.dir : '';
+    return `<th class="th-sort ${dirCls}" onclick="hpSortBy('${col}')">${label}<span class="sort-icon"></span></th>`;
+  };
+  const stChip = (stv) => {
+    if (stv==='overdue') return '<span class="st-chip st-overdue">Overdue</span>';
+    if (stv==='caution') return '<span class="st-chip st-caution">Caution</span>';
+    if (stv==='done')    return '<span class="st-chip st-normal">Done</span>';
+    if (stv==='normal')  return '<span class="st-chip st-normal">Normal</span>';
+    return '-';
+  };
 
-  el.innerHTML = `<div class="tw"><table class="ptbl">
+  el.innerHTML = `<div class="tw"><table class="htbl">
     <thead><tr>
-      <th>Deskripsi</th><th>HM Upd</th><th>Std LT</th>
-      <th>Tgl Install</th><th>HM Install</th><th>LT Upd</th>
-      <th>% Usage</th><th>Plan Date</th><th>Hrs Left</th><th>Ovd</th>
-      <th>Sts</th><th>Remarks</th><th>No. WO</th><th>Aksi</th>
+      ${thSort('Kat','kat')}${thSort('Deskripsi','deskripsi')}<th>Posisi</th>${thSort('Tgl Install','tglinstall')}${thSort('HM Install','hminstall')}
+      <th>HM Update</th>${thSort('Lifetime','lifetime')}${thSort('Target LT','targetlt')}<th>Exc</th>${thSort('Status','status')}<th>Sts</th><th>Remark</th><th>Aksi</th>
     </tr></thead>
-    <tbody>${rows.map(p => {
-      const hmRemoveNext = effectiveHmRemove[p._id]; // null = masih aktif
-      const isClosed = hmRemoveNext != null; // ada pengganti → record ini closed
-
-      // LT Upd:
-      // - If closed by next record: ltUpd = hmRemoveNext - hmInstall
-      // - If active & hmInstall exists: ltUpd = curHm - hmInstall
-      // - Else: use stored lt
-      let ltUpd;
-      if (isClosed && p.hmInstall != null && hmRemoveNext != null) {
-        ltUpd = Math.max(0, hmRemoveNext - p.hmInstall);
-      } else if (!isClosed && p.hmInstall != null && curHm != null) {
-        ltUpd = Math.max(0, curHm - p.hmInstall);
-      } else {
-        ltUpd = p.lt;
-      }
-
-      // HM Upd display: if closed show hmRemoveNext, else curHm
-      const hmUpdDisplay = isClosed ? fmtN(hmRemoveNext) : fmtN(p.hm||curHm);
-
-      const std = p.std;
-      const pct = (ltUpd != null && std) ? (ltUpd / std * 100) : (p.pct||0);
-      const chipcl = pct>100?'ch-overdue':pct>80?'ch-warn':'ch-ok';
-
-      const hrsLeft = (std && ltUpd!=null) ? (std - ltUpd) : null;
-      const isOverdue = !isClosed && std && ltUpd!=null && ltUpd > std;
-
-      // Closed records: show actual lifetime, no overdue
-      let planDisplay = '-';
-      if (isClosed) {
-        planDisplay = `<span style="color:var(--t3);font-size:10px">Selesai</span>`;
-      } else if (std && ltUpd!=null) {
-        if (isOverdue) {
-          planDisplay = '<span class="chip ch-overdue" style="font-size:9px">Overdue</span>';
-        } else {
-          const avgDailyHm = p.hrs && p.hrs > 0 ? p.hrs : 18;
-          const sisaHari = Math.round(hrsLeft / avgDailyHm);
-          const planCalc = new Date();
-          planCalc.setDate(planCalc.getDate() + sisaHari);
-          planDisplay = `${planCalc.getDate()} ${mo2[planCalc.getMonth()]} ${planCalc.getFullYear()}`;
-        }
-      }
-
-      const hrsLeftDisplay = isClosed
-        ? `<span style="color:var(--t3);font-size:10px">-</span>`
-        : hrsLeft!=null
-          ? `<span style="color:${hrsLeft<0?'var(--red)':hrsLeft<500?'var(--gold)':'var(--t2)'};font-weight:600">${Math.round(hrsLeft).toLocaleString()}h</span>`
-          : '-';
-
-      const ovdChip = (!isClosed && isOverdue)
-        ? `<span class="chip ch-overdue" style="font-size:9px">OVD</span>`
-        : `<span style="color:var(--t3);font-size:10px">-</span>`;
-
-      // Row style: dim closed records slightly
-      const rowStyle = isClosed ? 'opacity:0.6' : '';
-
-      return `<tr style="${rowStyle}">
-        <td title="${p.k||''}">${p.k||''}${isClosed?` <span style="font-size:9px;color:var(--t3);background:var(--s2);padding:1px 5px;border-radius:4px">done</span>`:''}</td>
-        <td>${hmUpdDisplay}</td>
-        <td>${fmtN(std)}</td>
-        <td>${fmtDate(p.tglInstall)}</td>
-        <td>${fmtN(p.hmInstall)}</td>
-        <td>${ltUpd!=null?fmtN(Math.round(ltUpd)):'-'}</td>
-        <td><span class="chip ${isClosed?'':''+chipcl}" style="${isClosed?'background:var(--s2);color:var(--t3)':''}">${pct.toFixed(1)}%</span></td>
-        <td>${planDisplay}</td>
-        <td>${hrsLeftDisplay}</td>
-        <td>${ovdChip}</td>
-        <td style="font-size:10px">${p.st||'-'}</td>
-        <td title="${p.rem||''}">${p.rem||''}</td>
-        <td title="${p.wo||''}">${p.wo||'-'}</td>
+    <tbody>${rows.map(r => {
+      const excChip = r._exc==='BUS' ? `<span class="chip" style="background:rgba(59,130,246,.18);color:#60a5fa;font-size:9px">BUS</span>`
+                    : r._exc==='BS'  ? `<span class="chip" style="background:rgba(168,85,247,.18);color:#c084fc;font-size:9px">BS</span>`
+                    : '-';
+      const editAttr = r._src==='hcc' ? `data-edit-hcc="${r._id||''}"` : `data-edit-prok="${r._id||''}"`;
+      const delAttr  = r._src==='hcc' ? `data-del-hcc="${r._id||''}"`  : `data-del-prok="${r._id||''}"`;
+      const rowStyle = r._st==='done' ? ' style="opacity:.6"' : '';
+      return `<tr${rowStyle}>
+        <td>${r._cat?`<span class="chip ${r._cat==='MAJOR'?'ch-major':'ch-minor'}">${r._cat}</span>`:'-'}</td>
+        <td title="${r._desc||''}">${r._desc||''}${r._src==='proker'?' <span style="font-size:8px;color:var(--t3);background:var(--s2);padding:1px 5px;border-radius:4px">PROKER</span>':''}</td>
+        <td style="text-align:center">${r._posisi||'-'}</td>
+        <td>${fmtDate(r._tglInstall)}</td>
+        <td>${fmtN(r._hmInstall)}</td>
+        <td style="text-align:center">${r._isRun?`<span style="color:var(--green);font-weight:600">${fmtN(r._hmUpdate)}</span>`:fmtN(r._hmUpdate)}</td>
+        <td><b style="color:var(--gold)">${r._lifetime!=null?Math.round(r._lifetime).toLocaleString()+'h':'-'}</b></td>
+        <td style="color:var(--t1);font-weight:700;text-align:center">${r._targetLt!=null?fmtN(r._targetLt):'-'}</td>
+        <td style="text-align:center">${excChip}</td>
+        <td>${stChip(r._st)}</td>
+        <td style="font-size:10px">${r._sts||'-'}</td>
+        <td title="${r._remark||''}">${r._remark||''}</td>
         <td><div class="tbl-acts">
-          <button class="btn btn-outline btn-xs edit-action" data-edit-prok="${p._id||''}">Edit</button>
-          <button class="btn btn-red btn-xs edit-action"     data-del-prok="${p._id||''}">Hapus</button>
+          <button class="btn btn-outline btn-xs edit-action" ${editAttr}>Edit</button>
+          <button class="btn btn-red btn-xs edit-action"     ${delAttr}>Hapus</button>
         </div></td>
       </tr>`;
     }).join('')}${missing.map(t => `<tr style="opacity:.45">
-      <td title="${t.k}" style="font-style:italic">${t.k} <span style="font-size:9px;color:var(--t3);font-style:normal">· belum ada data unit ini</span></td>
-      <td>-</td><td>${fmtN(t.std)}</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
-      <td style="font-size:10px">-</td><td>-</td><td>-</td>
+      <td>-</td>
+      <td style="font-style:italic" title="${t.k}">${t.k} <span style="font-size:9px;color:var(--t3);font-style:normal">· belum ada data unit ini</span></td>
+      <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+      <td style="text-align:center;font-weight:700">${fmtN(t.std)}</td>
+      <td>-</td><td>-</td><td>-</td><td>-</td>
       <td><button class="btn btn-gold btn-xs edit-action" data-tpl-add="${code}" data-tpl-desc="${encodeURIComponent(t.k)}" data-tpl-std="${t.std!=null?t.std:''}">+ Isi</button></td>
     </tr>`).join('')}</tbody></table></div>`;
 }
@@ -3147,26 +2961,24 @@ function toggleDataKomponenMenu() {
   chev.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
 }
 
-function openGlobalData(tab) {
+function openGlobalData() {
   document.getElementById('gdPage').classList.add('open');
-  gdTab = tab || gdTab || 'hcc';
-  const label = document.getElementById('gdActiveTabLabel');
-  label.textContent = gdTab === 'hcc' ? '📋 General Data HCC' : '⚙ General Data Proker';
+  document.getElementById('gdActiveTabLabel').textContent = '📋⚙ General Data HCC & Proker';
   document.getElementById('gdStatus').value = '';
   document.getElementById('gdYear').value = '';
   document.getElementById('gdMonth').value = '';
-  gdPopulateYears(); // opsi tahun beda antara HCC (dt/dateInstalled) & Proker (tglInstall), refresh tiap ganti tab
-  gdSort = {col:null, dir:'asc'}; // reset sort tiap ganti tab HCC/Proker (kolomnya beda)
-  gdTypeChange(); // this internally calls renderGlobalData() once, with correct gdTab already set
+  gdPopulateYears();
+  gdSort = {col:null, dir:'asc'};
+  gdTypeChange(); // this internally calls renderGlobalData() once
 }
 function closeGlobalData() { document.getElementById('gdPage').classList.remove('open'); }
 
-// Isi dropdown Tahun berdasarkan Tgl Install yang benar-benar ada di data tab aktif (HCC atau Proker).
+// Isi dropdown Tahun berdasarkan Tgl Install yang benar-benar ada di data HCC + Proker gabungan.
 // Dipakai buat filter histori: taruh tahun-tahun yg beneran punya record, bukan range statis.
 function gdPopulateYears() {
   const yearEl = document.getElementById('gdYear');
   const cur = yearEl.value;
-  const src = gdTab === 'hcc' ? hcc.map(r => r.dt||r.dateInstalled) : proker.map(p => p.tglInstall);
+  const src = [...hcc.map(r => r.dt||r.dateInstalled), ...proker.map(p => p.tglInstall)];
   const years = [...new Set(src.map(s => {
     const ts = dateSortVal(s);
     return ts==null ? null : new Date(ts).getUTCFullYear();
@@ -3191,6 +3003,64 @@ function gdTypeChange() {
   modelEl.innerHTML = '<option value="">Semua Model</option>' +
     models.map(m => `<option${m===curModel?' selected':''}>${m}</option>`).join('');
   renderGlobalData();
+}
+
+// Gabungin record HCC + Proker jadi satu bentuk baris yang seragam (kolom & itung-itungan
+// ngikutin gaya HCC): _code,_cat,_desc,_posisi,_tglInstall,_hmInstall,_hmUpdate,_lifetime,
+// _targetLt,_exc,_sisa,_pct,_st (overdue/caution/normal/done),_sts,_remark,_id,_src.
+// Proker gak punya kat/posisi/exc jadi dikosongin. Dipakai bareng oleh General Data (semua
+// unit) & tab per-unit "HCC & Proker" — satu fungsi, satu logika, biar dua-duanya konsisten.
+function buildCombinedRows(hccList, prokerList) {
+  const hccAutoCloseCache = {};
+  const hccRows = hccList.map(r => {
+    const code = r.u||r.unitCode||'';
+    const curHm = hmMap[code]?.hm;
+    const hi    = r.hi??r.hmInstall;
+    if (!hccAutoCloseCache[code]) hccAutoCloseCache[code] = getHccAutoCloseMap(code);
+    const ac    = hccAutoCloseCache[code].get(r) || { isClosed:false, closedAtHm:null };
+    const isRun = !ac.isClosed && (r.hr??r.hmRemove)==='Running';
+    const lt    = ac.isClosed && hi!=null && ac.closedAtHm!=null ? Math.max(0, ac.closedAtHm-hi)
+                : (isRun && curHm && hi!=null ? curHm-hi : (r.lt??r.lifeTime));
+    const tgt   = r.targetLt;
+    const sisa  = tgt!=null && lt!=null ? tgt-lt : null;
+    const hmUpdRaw = isRun ? curHm : (r.hr??r.hmRemove);
+    const hmUpdVal = typeof hmUpdRaw==='number' ? hmUpdRaw : (parseFloat(hmUpdRaw)||null);
+    let st = null;
+    if (ac.isClosed) st = 'done';
+    else if (tgt!=null && lt!=null) st = lt>tgt ? 'overdue' : sisa<750 ? 'caution' : 'normal';
+    return {
+      _src:'hcc', _id:r.id, _code:code, _cat:r.cat||r.compCategory||'', _desc:r.desc||r.compDesc||'',
+      _posisi:fmtPos(r)||'', _tglInstall:r.dt||r.dateInstalled, _hmInstall:hi, _hmUpdate:hmUpdVal, _isRun:isRun,
+      _lifetime:lt, _targetLt:tgt, _exc:r.exc||'', _sisa:sisa,
+      _pct: tgt && lt!=null ? Math.min(100,(lt/tgt*100)) : null,
+      _st:st, _sts:r.st||'', _remark:r.rm||r.remark||''
+    };
+  });
+  const prokerRows = prokerList.map(p => {
+    const key = (p.k||'').trim().toLowerCase();
+    // Auto-close: cari record berikutnya dgn deskripsi sama di UNIT yg sama — selalu pakai
+    // array `proker` global (bukan prokerList yg mungkin sudah difilter) biar deteksinya benar.
+    const sameDesc = proker.filter(x => x.u===p.u && (x.k||'').trim().toLowerCase()===key && x._id!==p._id);
+    const nextRecord = sameDesc.filter(x=>(x.hmInstall||0)>(p.hmInstall||0)).sort((a,b)=>(a.hmInstall||0)-(b.hmInstall||0))[0];
+    const isClosed = !!nextRecord;
+    const curHm = hmMap[p.u]?.hm;
+    let lt;
+    if (isClosed && p.hmInstall!=null && nextRecord.hmInstall!=null) lt = Math.max(0, nextRecord.hmInstall - p.hmInstall);
+    else if (!isClosed && p.hmInstall!=null && curHm!=null) lt = Math.max(0, curHm - p.hmInstall);
+    else lt = p.lt;
+    const sisa = p.std && lt!=null ? p.std-lt : null;
+    const pct  = p.std && lt!=null ? lt/p.std*100 : (p.pct||0);
+    let st = null;
+    if (isClosed) st = 'done';
+    else if (p.std && lt!=null) st = lt>p.std ? 'overdue' : sisa<750 ? 'caution' : 'normal';
+    return {
+      _src:'proker', _id:p._id, _code:p.u||'', _cat:'', _desc:p.k||'',
+      _posisi:'', _tglInstall:p.tglInstall, _hmInstall:p.hmInstall, _hmUpdate:parseFloat(p.hm)||null, _isRun:!isClosed,
+      _lifetime:lt, _targetLt:p.std, _exc:'', _sisa:sisa, _pct:pct,
+      _st:st, _sts:p.st||'', _remark:p.rem||''
+    };
+  });
+  return [...hccRows, ...prokerRows];
 }
 
 function renderGlobalData() {
@@ -3241,234 +3111,108 @@ function renderGlobalData() {
   const unitModelMap = new Map(fleet.map(u => [u.unitCode, u.modelGroup||u.model||'']));
   const modelOf = code => unitModelMap.get(code) || '';
 
-  if (gdTab === 'hcc') {
-    const hccAutoCloseByUnitGd = {};
-    let allRows = hcc.filter(r => {
-      const code = r.u||r.unitCode||'';
-      if (!unitSet.has(code)) return false;
-      if (q && !(r.desc||r.compDesc||'').toLowerCase().includes(q) && !code.toLowerCase().includes(q)) return false;
-      if ((selYear||selMonth) && !matchYM(r.dt||r.dateInstalled)) return false;
-      return true;
-    }).map(r => {
-      const code  = r.u||r.unitCode||'';
-      const curHm = hmMap[code]?.hm;
-      const hi    = r.hi??r.hmInstall;
-      if (!hccAutoCloseByUnitGd[code]) hccAutoCloseByUnitGd[code] = getHccAutoCloseMap(code);
-      const ac    = hccAutoCloseByUnitGd[code].get(r) || { isClosed:false, closedAtHm:null };
-      const isRun = !ac.isClosed && (r.hr??r.hmRemove)==='Running';
-      const lt    = ac.isClosed && hi!=null && ac.closedAtHm!=null ? Math.max(0, ac.closedAtHm-hi)
-                  : (isRun && curHm && hi!=null ? curHm-hi : (r.lt??r.lifeTime));
-      const tgt   = r.targetLt;
-      const sisa  = tgt!=null && lt!=null ? tgt-lt : null;
-      const pct   = tgt && lt!=null ? Math.min(100,(lt/tgt*100)) : null;
-      const hmUpdRaw = isRun ? curHm : (r.hr??r.hmRemove);
-      const hmUpdVal  = typeof hmUpdRaw==='number' ? hmUpdRaw : (parseFloat(hmUpdRaw)||null);
-      let st = null;
-      if (ac.isClosed) st = 'done';
-      else if (tgt!=null && lt!=null) st = lt>tgt ? 'overdue' : sisa<750 ? 'caution' : 'normal';
-      return {...r, _code:code, _lt:lt, _tgt:tgt, _sisa:sisa, _pct:pct, _hmUpdVal:hmUpdVal, _st:st, _isRun:isRun, _curHm:curHm, _hi:hi, _isClosed:ac.isClosed, _closedAtHm:ac.closedAtHm};
-    });
+  const filteredHcc = hcc.filter(r => {
+    const code = r.u||r.unitCode||'';
+    if (!unitSet.has(code)) return false;
+    if (q && !(r.desc||r.compDesc||'').toLowerCase().includes(q) && !code.toLowerCase().includes(q)) return false;
+    if ((selYear||selMonth) && !matchYM(r.dt||r.dateInstalled)) return false;
+    return true;
+  });
+  const filteredProker = proker.filter(p => {
+    if (!unitSet.has(p.u||'')) return false;
+    if (q && !(p.k||'').toLowerCase().includes(q) && !(p.u||'').toLowerCase().includes(q)) return false;
+    if ((selYear||selMonth) && !matchYM(p.tglInstall)) return false;
+    return true;
+  });
 
-    // Count all statuses (before status filter)
-    const counts = {overdue:0,caution:0,normal:0,done:0,none:0};
-    allRows.forEach(r => { if(r._st) counts[r._st]++; else counts.none++; });
+  const allRows = buildCombinedRows(filteredHcc, filteredProker);
 
-    // Apply status filter
-    let rows = allRows;
-    if (selSt) rows = rows.filter(r => r._st === selSt);
+  // Count all statuses (before status filter)
+  const counts = {overdue:0,caution:0,normal:0,done:0,none:0};
+  allRows.forEach(r => { if(r._st) counts[r._st]++; else counts.none++; });
 
-    // Apply sort
-    if (gdSort.col) {
-      const dir = gdSort.dir === 'asc' ? 1 : -1;
-      rows = [...rows].sort((a,b) => {
-        switch (gdSort.col) {
-          case 'unit':       return cmpStr(a._code, b._code, dir);
-          case 'model':      return cmpStr(modelOf(a._code), modelOf(b._code), dir);
-          case 'kat':        return cmpStr(a.cat||a.compCategory, b.cat||b.compCategory, dir);
-          case 'deskripsi':  return cmpStr(a.desc||a.compDesc, b.desc||b.compDesc, dir);
-          case 'posisi':     return cmpStr(fmtPos(a), fmtPos(b), dir);
-          case 'tglinstall': return cmpNum(dateSortVal(a.dt||a.dateInstalled), dateSortVal(b.dt||b.dateInstalled), dir);
-          case 'hminstall':  return cmpNum(a._hi, b._hi, dir);
-          case 'hmupdate':   return cmpNum(a._hmUpdVal, b._hmUpdVal, dir);
-          case 'lifetime':   return cmpNum(a._lt, b._lt, dir);
-          case 'targetlt':   return cmpNum(a._tgt, b._tgt, dir);
-          case 'sisa':       return cmpNum(a._sisa, b._sisa, dir);
-          case 'progress':   return cmpNum(a._pct, b._pct, dir);
-          case 'status':     return dir * ((rankSt[a._st]??4) - (rankSt[b._st]??4));
-          default: return 0;
-        }
-      });
-    }
+  // Apply status filter
+  let rows = allRows;
+  if (selSt) rows = rows.filter(r => r._st === selSt);
 
-    document.getElementById('gdResultInfo').innerHTML = `Menampilkan <b>${rows.length}</b> dari <b>${allRows.length}</b> &nbsp;|&nbsp; <span style="color:var(--red)">${counts.overdue} Overdue</span> &nbsp;<span style="color:#f97316">${counts.caution} Caution</span> &nbsp;<span style="color:var(--green)">${counts.normal} Normal</span>`;
-
-    if (!rows.length) { body.innerHTML=`<div class="gd-empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><p>Tidak ada data yang cocok</p></div>`; return; }
-
-    body.innerHTML = `<table class="gd-tbl" style="table-layout:fixed">
-      <colgroup>
-        <col style="width:34px">  <!-- # -->
-        <col style="width:76px">  <!-- unit -->
-        <col style="width:86px">  <!-- model -->
-        <col style="width:50px">  <!-- kat -->
-        <col style="width:190px"> <!-- deskripsi -->
-        <col style="width:56px">  <!-- posisi -->
-        <col style="width:100px"> <!-- tgl install -->
-        <col style="width:80px">  <!-- hm install -->
-        <col style="width:84px">  <!-- hm update -->
-        <col style="width:68px">  <!-- lifetime -->
-        <col style="width:66px">  <!-- target lt -->
-        <col style="width:52px">  <!-- exc -->
-        <col style="width:58px">  <!-- sisa -->
-        <col style="width:84px">  <!-- progress -->
-        <col style="width:66px">  <!-- status -->
-        <col style="width:44px">  <!-- sts -->
-        <col style="width:145px"> <!-- remark -->
-      </colgroup>
-      <thead><tr>
-        <th>#</th>${gdThSort('Unit','unit')}${gdThSort('Model','model')}${gdThSort('Kat','kat')}${gdThSort('Deskripsi','deskripsi')}
-        ${gdThSort('Posisi','posisi')}${gdThSort('Tgl Install','tglinstall')}${gdThSort('HM Install','hminstall')}${gdThSort('HM Update','hmupdate')}
-        ${gdThSort('Lifetime','lifetime')}${gdThSort('Target LT','targetlt')}<th>Exc</th>${gdThSort('Sisa','sisa')}${gdThSort('Progress','progress')}${gdThSort('Status','status')}<th>Sts</th><th>Remark</th>
-      </tr></thead>
-      <tbody>${rows.map((r,i) => {
-        const u = fleet.find(x=>x.unitCode===r._code)||{};
-        const hmUpd = r._isRun ? (r._curHm?fmtN(r._curHm):'-') : fmtN(r.hr??r.hmRemove);
-        const pct   = r._tgt && r._lt ? Math.min(100,(r._lt/r._tgt*100)) : null;
-        const barColor = r._st==='overdue'?'var(--red)':r._st==='caution'?'#f97316':'var(--green)';
-        const exc = r.exc||'';
-        const excChip = exc==='BUS' ? `<span class="chip" style="background:rgba(59,130,246,.18);color:#60a5fa;font-size:9px">BUS</span>`
-                      : exc==='BS'  ? `<span class="chip" style="background:rgba(168,85,247,.18);color:#c084fc;font-size:9px">BS</span>`
-                      : '-';
-        return `<tr>
-          <td style="color:var(--t3);font-size:10px">${i+1}</td>
-          <td style="overflow:hidden;text-overflow:ellipsis"><span class="unit-link" onclick="closeGlobalData();gotoUnit('${r._code}')">${r._code}</span></td>
-          <td style="color:var(--t2);overflow:hidden;text-overflow:ellipsis" title="${u.modelGroup||u.model||''}">${u.modelGroup||u.model||''}</td>
-          <td><span class="chip ${(r.cat||r.compCategory)==='MAJOR'?'ch-major':'ch-minor'}" style="font-size:9px">${r.cat||r.compCategory||''}</span></td>
-          <td style="overflow:hidden;text-overflow:ellipsis" title="${r.desc||r.compDesc||''}">${r.desc||r.compDesc||''}</td>
-          <td style="overflow:hidden;text-overflow:ellipsis;color:var(--t2)">${fmtPos(r)||'-'}</td>
-          <td style="color:var(--t1);overflow:hidden;text-overflow:ellipsis">${fmtDate(r.dt||r.dateInstalled)}</td>
-          <td>${fmtN(r._hi)}</td>
-          <td>${r._isRun?`<b style="color:var(--green)">${hmUpd}</b>`:hmUpd}</td>
-          <td><b style="color:var(--gold)">${r._lt!=null?Math.round(r._lt).toLocaleString()+'h':'-'}</b></td>
-          <td style="font-weight:700">${r._tgt!=null?fmtN(r._tgt):'-'}</td>
-          <td style="text-align:center">${excChip}</td>
-          <td style="font-weight:700;color:${r._sisa!=null&&r._sisa<0?'var(--red)':r._sisa!=null&&r._sisa<750?'#f97316':'var(--t2)'}">${r._sisa!=null?Math.round(r._sisa).toLocaleString()+'h':'-'}</td>
-          <td>${pct!=null?`<div class="hrs-bar-wrap"><div class="hrs-bar"><div class="hrs-bar-fill" style="width:${Math.min(pct,100)}%;background:${barColor}"></div></div><span style="font-size:10px;color:var(--t3);flex-shrink:0">${pct.toFixed(0)}%</span></div>`:'-'}</td>
-          <td>${r._st?chip(r._st):'-'}</td>
-          <td style="color:var(--t2)">${r.st||'-'}</td>
-          <td style="overflow:hidden;text-overflow:ellipsis;color:var(--t2)" title="${r.rm||r.remark||''}">${r.rm||r.remark||''}</td>
-        </tr>`;
-      }).join('')}</tbody></table>`;
-
-  } else {
-    // PROKER TAB
-    let allRows = proker.filter(p => {
-      if (!unitSet.has(p.u||'')) return false;
-      if (q && !(p.k||'').toLowerCase().includes(q) && !(p.u||'').toLowerCase().includes(q)) return false;
-      if ((selYear||selMonth) && !matchYM(p.tglInstall)) return false;
-      return true;
-    }).map(p => {
-      // Auto-close: find next record with same description+unit
-      const key = (p.k||'').trim().toLowerCase();
-      const sameDesc = proker.filter(x => x.u===p.u && (x.k||'').trim().toLowerCase()===key && x._id!==p._id);
-      const nextRecord = sameDesc.filter(x=>(x.hmInstall||0)>(p.hmInstall||0)).sort((a,b)=>(a.hmInstall||0)-(b.hmInstall||0))[0];
-      const isClosed = !!nextRecord;
-      const curHm = hmMap[p.u]?.hm;
-      let ltUpd;
-      if (isClosed && p.hmInstall!=null && nextRecord.hmInstall!=null) {
-        ltUpd = Math.max(0, nextRecord.hmInstall - p.hmInstall);
-      } else if (!isClosed && p.hmInstall!=null && curHm!=null) {
-        ltUpd = Math.max(0, curHm - p.hmInstall);
-      } else {
-        ltUpd = p.lt;
+  // Apply sort
+  if (gdSort.col) {
+    const dir = gdSort.dir === 'asc' ? 1 : -1;
+    rows = [...rows].sort((a,b) => {
+      switch (gdSort.col) {
+        case 'unit':       return cmpStr(a._code, b._code, dir);
+        case 'model':      return cmpStr(modelOf(a._code), modelOf(b._code), dir);
+        case 'kat':        return cmpStr(a._cat, b._cat, dir);
+        case 'deskripsi':  return cmpStr(a._desc, b._desc, dir);
+        case 'posisi':     return cmpStr(a._posisi, b._posisi, dir);
+        case 'tglinstall': return cmpNum(dateSortVal(a._tglInstall), dateSortVal(b._tglInstall), dir);
+        case 'hminstall':  return cmpNum(a._hmInstall, b._hmInstall, dir);
+        case 'hmupdate':   return cmpNum(a._hmUpdate, b._hmUpdate, dir);
+        case 'lifetime':   return cmpNum(a._lifetime, b._lifetime, dir);
+        case 'targetlt':   return cmpNum(a._targetLt, b._targetLt, dir);
+        case 'sisa':       return cmpNum(a._sisa, b._sisa, dir);
+        case 'progress':   return cmpNum(a._pct, b._pct, dir);
+        case 'status':     return dir * ((rankSt[a._st]??4) - (rankSt[b._st]??4));
+        default: return 0;
       }
-      const sisa  = p.std && ltUpd!=null ? p.std-ltUpd : null;
-      const pct   = p.std && ltUpd!=null ? ltUpd/p.std*100 : (p.pct||0);
-      let st = null;
-      if (!isClosed && p.std && ltUpd!=null) st = ltUpd>p.std ? 'overdue' : sisa<750 ? 'caution' : 'normal';
-      else if (isClosed) st = 'normal'; // closed = treated as done/normal
-      return {...p, _ltUpd:ltUpd, _sisa:sisa, _pct:pct, _st:st, _isClosed:isClosed};
     });
-
-    const counts = {overdue:0,caution:0,normal:0};
-    allRows.forEach(r => { if(r._st) counts[r._st]++; });
-
-    let rows = allRows;
-    if (selSt) rows = rows.filter(r => r._st === selSt);
-
-    // Apply sort (nama kolom sengaja disamakan dgn tab HCC di atas biar konsisten)
-    if (gdSort.col) {
-      const dir = gdSort.dir === 'asc' ? 1 : -1;
-      rows = [...rows].sort((a,b) => {
-        switch (gdSort.col) {
-          case 'unit':       return cmpStr(a.u, b.u, dir);
-          case 'model':      return cmpStr(modelOf(a.u), modelOf(b.u), dir);
-          case 'deskripsi':  return cmpStr(a.k, b.k, dir);
-          case 'tglinstall': return cmpNum(dateSortVal(a.tglInstall), dateSortVal(b.tglInstall), dir);
-          case 'hminstall':  return cmpNum(a.hmInstall, b.hmInstall, dir);
-          case 'hmupdate':   return cmpNum(parseFloat(a.hm), parseFloat(b.hm), dir);
-          case 'lifetime':   return cmpNum(a._ltUpd, b._ltUpd, dir);
-          case 'targetlt':   return cmpNum(a.std, b.std, dir);
-          case 'sisa':       return cmpNum(a._sisa, b._sisa, dir);
-          case 'progress':   return cmpNum(a._pct, b._pct, dir);
-          case 'status':     return dir * ((rankSt[a._st]??4) - (rankSt[b._st]??4));
-          default: return 0;
-        }
-      });
-    }
-
-    document.getElementById('gdResultInfo').innerHTML = `Menampilkan <b>${rows.length}</b> dari <b>${allRows.length}</b> &nbsp;|&nbsp; <span style="color:var(--red)">${counts.overdue} Overdue</span> &nbsp;<span style="color:#f97316">${counts.caution} Caution</span> &nbsp;<span style="color:var(--green)">${counts.normal} Normal</span>`;
-
-    if (!rows.length) { body.innerHTML=`<div class="gd-empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><p>Tidak ada data yang cocok</p></div>`; return; }
-
-    body.innerHTML = `<table class="gd-tbl" style="table-layout:fixed">
-      <colgroup>
-        <col style="width:34px">  <!-- # -->
-        <col style="width:76px">  <!-- unit -->
-        <col style="width:86px">  <!-- model -->
-        <col style="width:50px">  <!-- kat -->
-        <col style="width:190px"> <!-- deskripsi -->
-        <col style="width:56px">  <!-- posisi -->
-        <col style="width:100px"> <!-- tgl install -->
-        <col style="width:80px">  <!-- hm install -->
-        <col style="width:84px">  <!-- hm update -->
-        <col style="width:68px">  <!-- lifetime -->
-        <col style="width:66px">  <!-- target lt -->
-        <col style="width:52px">  <!-- exc -->
-        <col style="width:58px">  <!-- sisa -->
-        <col style="width:84px">  <!-- progress -->
-        <col style="width:66px">  <!-- status -->
-        <col style="width:44px">  <!-- sts -->
-        <col style="width:145px"> <!-- remark -->
-      </colgroup>
-      <thead><tr>
-        <th>#</th>${gdThSort('Unit','unit')}${gdThSort('Model','model')}<th>Kat</th>${gdThSort('Deskripsi','deskripsi')}
-        <th>Posisi</th>${gdThSort('Tgl Install','tglinstall')}${gdThSort('HM Install','hminstall')}${gdThSort('HM Update','hmupdate')}
-        ${gdThSort('Lifetime','lifetime')}${gdThSort('Target LT','targetlt')}<th>Exc</th>${gdThSort('Sisa','sisa')}${gdThSort('Progress','progress')}${gdThSort('Status','status')}<th>Sts</th><th>Remark</th>
-      </tr></thead>
-      <tbody>${rows.map((p,i) => {
-        const u = fleet.find(x=>x.unitCode===p.u)||{};
-        const barColor = p._st==='overdue'?'var(--red)':p._st==='caution'?'#f97316':'var(--green)';
-        return `<tr>
-          <td style="color:var(--t3);font-size:10px">${i+1}</td>
-          <td style="overflow:hidden;text-overflow:ellipsis"><span class="unit-link" onclick="closeGlobalData();gotoUnit('${p.u}')">${p.u}</span></td>
-          <td style="color:var(--t2);overflow:hidden;text-overflow:ellipsis" title="${u.modelGroup||u.model||''}">${u.modelGroup||u.model||''}</td>
-          <td style="text-align:center;color:var(--t3)">-</td>
-          <td style="overflow:hidden;text-overflow:ellipsis" title="${p.k||''}">${p.k||''}</td>
-          <td style="text-align:center;color:var(--t3)">-</td>
-          <td style="color:var(--t1);overflow:hidden;text-overflow:ellipsis">${fmtDate(p.tglInstall)}</td>
-          <td>${fmtN(p.hmInstall)}</td>
-          <td>${fmtN(p.hm)}</td>
-          <td><b style="color:var(--gold)">${p._ltUpd!=null?Math.round(p._ltUpd).toLocaleString()+'h':'-'}</b></td>
-          <td style="font-weight:700">${p.std!=null?fmtN(p.std):'-'}</td>
-          <td style="text-align:center;color:var(--t3)">-</td>
-          <td style="font-weight:700;color:${p._sisa!=null&&p._sisa<0?'var(--red)':p._sisa!=null&&p._sisa<750?'#f97316':'var(--t2)'}">${p._sisa!=null?Math.round(p._sisa).toLocaleString()+'h':'-'}</td>
-          <td><div class="hrs-bar-wrap"><div class="hrs-bar"><div class="hrs-bar-fill" style="width:${Math.min(p._pct,100)}%;background:${barColor}"></div></div><span style="font-size:10px;color:var(--t3);flex-shrink:0">${p._pct.toFixed(0)}%</span></div></td>
-          <td>${p._st?chip(p._st):'-'}</td>
-          <td style="color:var(--t2)">${p.st||'-'}</td>
-          <td style="overflow:hidden;text-overflow:ellipsis;color:var(--t2)" title="${p.rem||''}">${p.rem||''}</td>
-        </tr>`;
-      }).join('')}</tbody></table>`;
   }
+
+  document.getElementById('gdResultInfo').innerHTML = `Menampilkan <b>${rows.length}</b> dari <b>${allRows.length}</b> &nbsp;|&nbsp; <span style="color:var(--red)">${counts.overdue} Overdue</span> &nbsp;<span style="color:#f97316">${counts.caution} Caution</span> &nbsp;<span style="color:var(--green)">${counts.normal} Normal</span>`;
+
+  if (!rows.length) { body.innerHTML=`<div class="gd-empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><p>Tidak ada data yang cocok</p></div>`; return; }
+
+  body.innerHTML = `<table class="gd-tbl" style="table-layout:fixed">
+    <colgroup>
+      <col style="width:34px">  <!-- # -->
+      <col style="width:76px">  <!-- unit -->
+      <col style="width:86px">  <!-- model -->
+      <col style="width:50px">  <!-- kat -->
+      <col style="width:190px"> <!-- deskripsi -->
+      <col style="width:56px">  <!-- posisi -->
+      <col style="width:100px"> <!-- tgl install -->
+      <col style="width:80px">  <!-- hm install -->
+      <col style="width:84px">  <!-- hm update -->
+      <col style="width:68px">  <!-- lifetime -->
+      <col style="width:66px">  <!-- target lt -->
+      <col style="width:52px">  <!-- exc -->
+      <col style="width:58px">  <!-- sisa -->
+      <col style="width:84px">  <!-- progress -->
+      <col style="width:66px">  <!-- status -->
+      <col style="width:44px">  <!-- sts -->
+      <col style="width:145px"> <!-- remark -->
+    </colgroup>
+    <thead><tr>
+      <th>#</th>${gdThSort('Unit','unit')}${gdThSort('Model','model')}${gdThSort('Kat','kat')}${gdThSort('Deskripsi','deskripsi')}
+      ${gdThSort('Posisi','posisi')}${gdThSort('Tgl Install','tglinstall')}${gdThSort('HM Install','hminstall')}${gdThSort('HM Update','hmupdate')}
+      ${gdThSort('Lifetime','lifetime')}${gdThSort('Target LT','targetlt')}<th>Exc</th>${gdThSort('Sisa','sisa')}${gdThSort('Progress','progress')}${gdThSort('Status','status')}<th>Sts</th><th>Remark</th>
+    </tr></thead>
+    <tbody>${rows.map((r,i) => {
+      const u = fleet.find(x=>x.unitCode===r._code)||{};
+      const barColor = r._st==='overdue'?'var(--red)':r._st==='caution'?'#f97316':'var(--green)';
+      const excChip = r._exc==='BUS' ? `<span class="chip" style="background:rgba(59,130,246,.18);color:#60a5fa;font-size:9px">BUS</span>`
+                    : r._exc==='BS'  ? `<span class="chip" style="background:rgba(168,85,247,.18);color:#c084fc;font-size:9px">BS</span>`
+                    : '-';
+      return `<tr>
+        <td style="color:var(--t3);font-size:10px">${i+1}</td>
+        <td style="overflow:hidden;text-overflow:ellipsis"><span class="unit-link" onclick="closeGlobalData();gotoUnit('${r._code}')">${r._code}</span></td>
+        <td style="color:var(--t2);overflow:hidden;text-overflow:ellipsis" title="${u.modelGroup||u.model||''}">${u.modelGroup||u.model||''}</td>
+        <td>${r._cat?`<span class="chip ${r._cat==='MAJOR'?'ch-major':'ch-minor'}" style="font-size:9px">${r._cat}</span>`:'<span style="color:var(--t3)">-</span>'}</td>
+        <td style="overflow:hidden;text-overflow:ellipsis" title="${r._desc||''}">${r._desc||''}</td>
+        <td style="overflow:hidden;text-overflow:ellipsis;color:var(--t2)">${r._posisi||'-'}</td>
+        <td style="color:var(--t1);overflow:hidden;text-overflow:ellipsis">${fmtDate(r._tglInstall)}</td>
+        <td>${fmtN(r._hmInstall)}</td>
+        <td>${r._isRun?`<b style="color:var(--green)">${fmtN(r._hmUpdate)}</b>`:fmtN(r._hmUpdate)}</td>
+        <td><b style="color:var(--gold)">${r._lifetime!=null?Math.round(r._lifetime).toLocaleString()+'h':'-'}</b></td>
+        <td style="font-weight:700">${r._targetLt!=null?fmtN(r._targetLt):'-'}</td>
+        <td style="text-align:center">${excChip}</td>
+        <td style="font-weight:700;color:${r._sisa!=null&&r._sisa<0?'var(--red)':r._sisa!=null&&r._sisa<750?'#f97316':'var(--t2)'}">${r._sisa!=null?Math.round(r._sisa).toLocaleString()+'h':'-'}</td>
+        <td>${r._pct!=null?`<div class="hrs-bar-wrap"><div class="hrs-bar"><div class="hrs-bar-fill" style="width:${Math.min(r._pct,100)}%;background:${barColor}"></div></div><span style="font-size:10px;color:var(--t3);flex-shrink:0">${r._pct.toFixed(0)}%</span></div>`:'-'}</td>
+        <td>${r._st?chip(r._st):'-'}</td>
+        <td style="color:var(--t2)">${r._sts||'-'}</td>
+        <td style="overflow:hidden;text-overflow:ellipsis;color:var(--t2)" title="${r._remark||''}">${r._remark||''}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
 }
 
 // ── INIT ──
