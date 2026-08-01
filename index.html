@@ -129,7 +129,7 @@ tr:last-child td{border-bottom:none}
 /* TABLE COLUMN WIDTHS */
 .htbl{table-layout:fixed;width:100%}
 .htbl th:nth-child(1){width:52px}  /* kat */
-.htbl th:nth-child(2){width:145px} /* deskripsi */
+.htbl th:nth-child(2){width:135px} /* deskripsi */
 .htbl th:nth-child(3){width:50px}  /* posisi */
 .htbl th:nth-child(4){width:80px}  /* tgl install */
 .htbl th:nth-child(5){width:66px}  /* hm install */
@@ -140,7 +140,8 @@ tr:last-child td{border-bottom:none}
 .htbl th:nth-child(10){width:74px} /* status (overdue/caution/normal/done) */
 .htbl th:nth-child(11){width:32px} /* sts */
 .htbl th:nth-child(12){width:auto} /* remark */
-.htbl th:nth-child(13){width:80px} /* aksi */
+.htbl th:nth-child(13){width:80px} /* no. wo */
+.htbl th:nth-child(14){width:80px} /* aksi */
 .htbl td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
 .htbl th{font-size:9.5px}
 
@@ -1094,11 +1095,11 @@ body.viewer-mode .viewer-badge{display:inline-flex}
           </select>
         </div>
         <div class="fg"><label>Status</label><input id="fc-status" placeholder="1st, 2nd..."></div>
+        <div class="fg"><label>No. WO</label><input id="fc-wo" placeholder="Nomor WO"></div>
         <div class="fg fg-full"><label>Remark</label><textarea id="fc-remark" rows="2"></textarea></div>
         <!-- hidden fields for data compatibility -->
         <input type="hidden" id="fc-pn">
         <input type="hidden" id="fc-vendor">
-        <input type="hidden" id="fc-wo">
         <input type="hidden" id="fc-po">
       </div>
       <div class="form-acts">
@@ -1115,22 +1116,20 @@ body.viewer-mode .viewer-badge{display:inline-flex}
     <div class="modal-hdr"><h3 id="prokerModalTitle">Edit Proker</h3><button class="modal-close" onclick="closeProkerModal()">×</button></div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="fg"><label>Unit</label><input id="fp-unitCode" readonly style="opacity:.6"></div>
-        <div class="fg"><label>Status (Sts)</label><input id="fp-status" placeholder="FIX, CND..."></div>
+        <div class="fg"><label>Unit Code</label><input id="fp-unitCode" readonly style="opacity:.6"></div>
+        <div class="fg"><label>Status</label><input id="fp-status" placeholder="FIX, CND..."></div>
         <div class="fg fg-full"><label>Deskripsi Komponen *</label><input id="fp-komponen" placeholder="Nama pekerjaan proker"></div>
         <div class="fg"><label>Tgl Install</label><input id="fp-tglInstall" type="date"></div>
         <div class="fg"><label>HM Install *</label><input id="fp-hmInstall" type="number" step="0.1" placeholder="HM saat install" oninput="calcProkLt()"></div>
         <div class="fg"><label>HM Update</label><input id="fp-hm" type="number" step="0.1" placeholder="HM unit terkini" oninput="calcProkLt()"></div>
-        <div class="fg"><label>LT Update (h)</label><input id="fp-lt" type="number" step="0.1" readonly style="opacity:.7;background:var(--s1)" placeholder="Auto: HM Upd − HM Install">
+        <div class="fg"><label>Lifetime (h)</label><input id="fp-lt" type="number" step="0.1" readonly style="opacity:.7;background:var(--s1)" placeholder="Auto-hitung">
           <div class="fg-hint">HM Update − HM Install (otomatis)</div></div>
-        <div class="fg"><label>Std Lifetime (h) *</label><input id="fp-std" type="number" step="0.1" placeholder="Std lifetime komponen" oninput="calcProkPct()"></div>
-        <div class="fg"><label>% Usage</label><input id="fp-pct" type="number" step="0.1" readonly style="opacity:.7;background:var(--s1)" placeholder="Auto-hitung">
-          <div class="fg-hint">LT Upd / Std LT × 100 (otomatis)</div></div>
-        <div class="fg"><label>Avg HM/Hari</label><input id="fp-hrs" type="number" step="0.1" placeholder="Default: 18">
-          <div class="fg-hint">Untuk hitung Plan Date otomatis</div></div>
-        <div class="fg fg-full"><label>Remarks</label><input id="fp-rem" placeholder="Normal, Overdue, dst..."></div>
+        <div class="fg"><label>Target Lifetime (h) *</label><input id="fp-std" type="number" step="0.1" placeholder="Std lifetime komponen" oninput="calcProkPct()"></div>
         <div class="fg"><label>No. WO</label><input id="fp-wo" placeholder="Nomor WO"></div>
-        <!-- hidden legacy fields -->
+        <div class="fg fg-full"><label>Remark</label><textarea id="fp-rem" rows="2" placeholder="Normal, Overdue, dst..."></textarea></div>
+        <!-- hidden fields (masih dipakai buat itungan internal, cuma nggak ditampilin di form) -->
+        <input type="hidden" id="fp-pct">
+        <input type="hidden" id="fp-hrs">
         <input type="hidden" id="fp-plan">
         <input type="hidden" id="fp-r1d"><input type="hidden" id="fp-r1h">
         <input type="hidden" id="fp-r2d"><input type="hidden" id="fp-r2h">
@@ -1225,7 +1224,7 @@ function hccToRow(r) {
     'Posisi': r.pos || '', 'Tgl Install': r.dt || '', 'HM Install': r.hi != null ? r.hi : '',
     'HM Update': r.hr != null ? r.hr : '', 'Lifetime': r.lt != null ? r.lt : '',
     'Target LT': r.targetLt != null ? r.targetLt : '', 'Sisa (h)': sisa, 'Exc': r.exc || '',
-    'Status': r.st || '', 'Sts': r.st || '', 'Remark': r.rm || ''
+    'Status': r.st || '', 'Sts': r.st || '', 'Remark': r.rm || '', 'No. WO': r.wo || r.woNumber || ''
   };
 }
 function rowToHcc(row, idx, code) {
@@ -1245,7 +1244,7 @@ function rowToHcc(row, idx, code) {
     lifeTime: safeNum(row['Lifetime']),
     targetLt: safeNum(row['Target LT']),
     exc: row['Exc'] || '', st: row['Sts'] || row['Status'] || '', status: row['Sts'] || row['Status'] || '',
-    v: '', vendor: '', wo: '', woNumber: '', po: '', pn: '',
+    v: '', vendor: '', wo: row['No. WO'] || '', woNumber: row['No. WO'] || '', po: '', pn: '',
     rm: row['Remark'] || '', remark: row['Remark'] || ''
   };
 }
@@ -1858,7 +1857,7 @@ function renderDetail(code) {
         <div class="sec-title" style="color:var(--red)">⚠ Overdue Lifetime HCC</div>
         <div class="tw"><table style="table-layout:fixed;width:100%">
           <colgroup>
-            <col style="width:56px"><col style="width:190px"><col style="width:74px"><col style="width:70px"><col style="width:70px"><col style="width:auto">
+            <col style="width:56px"><col style="width:160px"><col style="width:70px"><col style="width:64px"><col style="width:64px"><col style="width:auto"><col style="width:80px"><col style="width:48px">
           </colgroup>
           <thead><tr>
             <th style="font-size:9.5px">Kat</th>
@@ -1867,6 +1866,8 @@ function renderDetail(code) {
             <th style="font-size:9.5px">Target LT</th>
             <th style="font-size:9.5px">Selisih</th>
             <th style="font-size:9.5px">Remarks</th>
+            <th style="font-size:9.5px">No. WO</th>
+            <th style="font-size:9.5px">Aksi</th>
           </tr></thead>
           <tbody>${overdueHcc.map(r=>{
             const selisih = r._lt!=null && r._tgt!=null ? Math.round(r._lt - r._tgt) : null;
@@ -1878,6 +1879,8 @@ function renderDetail(code) {
               <td style="font-size:11px">${fmtN(r._tgt)}</td>
               <td style="font-size:11px"><span style="color:var(--red);font-weight:700">+${selisih!=null?selisih.toLocaleString():'-'}h</span></td>
               <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.rm||r.remark||''}</td>
+              <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.wo||r.woNumber||'-'}</td>
+              <td><button class="btn btn-outline btn-xs edit-action" data-edit-hcc="${r.id||''}">Edit</button></td>
             </tr>`;
           }).join('')}</tbody>
         </table></div>
@@ -1930,7 +1933,7 @@ function renderDetail(code) {
         <div class="sec-title" style="color:#f97316">🔔 Caution Lifetime HCC</div>
         <div class="tw"><table style="table-layout:fixed;width:100%">
           <colgroup>
-            <col style="width:56px"><col style="width:190px"><col style="width:74px"><col style="width:70px"><col style="width:70px"><col style="width:auto">
+            <col style="width:56px"><col style="width:160px"><col style="width:70px"><col style="width:64px"><col style="width:64px"><col style="width:auto"><col style="width:80px"><col style="width:48px">
           </colgroup>
           <thead><tr>
             <th style="font-size:9.5px">Kat</th>
@@ -1939,6 +1942,8 @@ function renderDetail(code) {
             <th style="font-size:9.5px">Target LT</th>
             <th style="font-size:9.5px">Sisa</th>
             <th style="font-size:9.5px">Remarks</th>
+            <th style="font-size:9.5px">No. WO</th>
+            <th style="font-size:9.5px">Aksi</th>
           </tr></thead>
           <tbody>${cautionHcc.map(r=>{
             const isMaj = (r.cat||r.compCategory||'')==='MAJOR';
@@ -1949,6 +1954,8 @@ function renderDetail(code) {
               <td style="font-size:11px">${fmtN(r._tgt)}</td>
               <td style="font-size:11px"><span style="color:#f97316;font-weight:700">${r._sisa!=null?Math.round(r._sisa).toLocaleString()+'h':'-'}</span></td>
               <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.rm||r.remark||''}</td>
+              <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.wo||r.woNumber||'-'}</td>
+              <td><button class="btn btn-outline btn-xs edit-action" data-edit-hcc="${r.id||''}">Edit</button></td>
             </tr>`;
           }).join('')}</tbody>
         </table></div>
@@ -2125,7 +2132,7 @@ function renderHccProkerTab(code, q='', cat='', st='') {
   el.innerHTML = `<div class="tw"><table class="htbl">
     <thead><tr>
       ${thSort('Kat','kat')}${thSort('Deskripsi','deskripsi')}<th>Posisi</th>${thSort('Tgl Install','tglinstall')}${thSort('HM Install','hminstall')}
-      <th>HM Update</th>${thSort('Lifetime','lifetime')}${thSort('Target LT','targetlt')}<th>Exc</th>${thSort('Status','status')}<th>Sts</th><th>Remark</th><th>Aksi</th>
+      <th>HM Update</th>${thSort('Lifetime','lifetime')}${thSort('Target LT','targetlt')}<th>Exc</th>${thSort('Status','status')}<th>Sts</th><th>Remark</th><th>No. WO</th><th>Aksi</th>
     </tr></thead>
     <tbody>${rows.map(r => {
       const excChip = r._exc==='BUS' ? `<span class="chip" style="background:rgba(59,130,246,.18);color:#60a5fa;font-size:9px">BUS</span>`
@@ -2136,7 +2143,7 @@ function renderHccProkerTab(code, q='', cat='', st='') {
       const rowStyle = r._st==='done' ? ' style="opacity:.6"' : '';
       return `<tr${rowStyle}>
         <td>${r._cat?`<span class="chip ${r._cat==='MAJOR'?'ch-major':'ch-minor'}">${r._cat}</span>`:'-'}</td>
-        <td title="${r._desc||''}">${r._desc||''}${r._src==='proker'?' <span style="font-size:8px;color:var(--t3);background:var(--s2);padding:1px 5px;border-radius:4px">PROKER</span>':''}</td>
+        <td title="${r._desc||''}">${r._desc||''}</td>
         <td style="text-align:center">${r._posisi||'-'}</td>
         <td>${fmtDate(r._tglInstall)}</td>
         <td>${fmtN(r._hmInstall)}</td>
@@ -2147,6 +2154,7 @@ function renderHccProkerTab(code, q='', cat='', st='') {
         <td>${stChip(r._st)}</td>
         <td style="font-size:10px">${r._sts||'-'}</td>
         <td title="${r._remark||''}">${r._remark||''}</td>
+        <td title="${r._wo||''}">${r._wo||'-'}</td>
         <td><div class="tbl-acts">
           <button class="btn btn-outline btn-xs edit-action" ${editAttr}>Edit</button>
           <button class="btn btn-red btn-xs edit-action"     ${delAttr}>Hapus</button>
@@ -2158,6 +2166,7 @@ function renderHccProkerTab(code, q='', cat='', st='') {
       <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
       <td style="text-align:center;font-weight:700">${fmtN(t.std)}</td>
       <td>-</td><td>-</td><td>-</td><td>-</td>
+      <td>-</td>
       <td><button class="btn btn-gold btn-xs edit-action" data-tpl-add="${code}" data-tpl-desc="${encodeURIComponent(t.k)}" data-tpl-std="${t.std!=null?t.std:''}">+ Isi</button></td>
     </tr>`).join('')}</tbody></table></div>`;
 }
@@ -3033,7 +3042,7 @@ function buildCombinedRows(hccList, prokerList) {
       _posisi:fmtPos(r)||'', _tglInstall:r.dt||r.dateInstalled, _hmInstall:hi, _hmUpdate:hmUpdVal, _isRun:isRun,
       _lifetime:lt, _targetLt:tgt, _exc:r.exc||'', _sisa:sisa,
       _pct: tgt && lt!=null ? Math.min(100,(lt/tgt*100)) : null,
-      _st:st, _sts:r.st||'', _remark:r.rm||r.remark||''
+      _st:st, _sts:r.st||'', _remark:r.rm||r.remark||'', _wo:r.wo||r.woNumber||''
     };
   });
   const prokerRows = prokerList.map(p => {
@@ -3057,7 +3066,7 @@ function buildCombinedRows(hccList, prokerList) {
       _src:'proker', _id:p._id, _code:p.u||'', _cat:'', _desc:p.k||'',
       _posisi:'', _tglInstall:p.tglInstall, _hmInstall:p.hmInstall, _hmUpdate:parseFloat(p.hm)||null, _isRun:!isClosed,
       _lifetime:lt, _targetLt:p.std, _exc:'', _sisa:sisa, _pct:pct,
-      _st:st, _sts:p.st||'', _remark:p.rem||''
+      _st:st, _sts:p.st||'', _remark:p.rem||'', _wo:p.wo||''
     };
   });
   return [...hccRows, ...prokerRows];
