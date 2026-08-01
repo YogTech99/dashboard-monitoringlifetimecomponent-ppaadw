@@ -1129,6 +1129,7 @@ body.viewer-mode .viewer-badge{display:inline-flex}
         <div class="fg"><label>Avg HM/Hari</label><input id="fp-hrs" type="number" step="0.1" placeholder="Default: 18">
           <div class="fg-hint">Untuk hitung Plan Date otomatis</div></div>
         <div class="fg fg-full"><label>Remarks</label><input id="fp-rem" placeholder="Normal, Overdue, dst..."></div>
+        <div class="fg"><label>No. WO</label><input id="fp-wo" placeholder="Nomor WO"></div>
         <!-- hidden legacy fields -->
         <input type="hidden" id="fp-plan">
         <input type="hidden" id="fp-r1d"><input type="hidden" id="fp-r1h">
@@ -1254,7 +1255,7 @@ function prokerToRow(p) {
     'HM Install': p.hmInstall != null ? p.hmInstall : '', 'LT Update': p.lt != null ? p.lt : '',
     '% Usage': p.pct != null ? p.pct : '', 'Hrs Left': p.hrs != null ? p.hrs : '',
     'Plan Date': p.plan != null ? p.plan : '', 'Status': '', 'Sts': p.st || '',
-    'Remarks': p.rem || ''
+    'Remarks': p.rem || '', 'No. WO': p.wo || ''
   };
 }
 function rowToProker(row, idx) {
@@ -1269,7 +1270,8 @@ function rowToProker(row, idx) {
     lt: safeNum(row['LT Update']),
     pct: safeNum(row['% Usage']),
     hrs: safeNum(row['Hrs Left']),
-    plan: row['Plan Date'] || null, st: row['Sts'] || '', rem: row['Remarks'] || ''
+    plan: row['Plan Date'] || null, st: row['Sts'] || '', rem: row['Remarks'] || '',
+    wo: row['No. WO'] || ''
   };
 }
 
@@ -1806,8 +1808,7 @@ function renderDetail(code) {
 
     <div class="dtabs" id="dtabs-${code}">
       <div class="dtab active" data-tab="info">ℹ Info</div>
-      <div class="dtab" data-tab="hcc">📋 HCC <span class="sec-cnt">${uHcc.length}</span></div>
-      <div class="dtab" data-tab="proker">⚙ Proker <span class="sec-cnt">${uProker.length}</span></div>
+      <div class="dtab" data-tab="hcc-proker">📋⚙ HCC &amp; Proker <span class="sec-cnt">${uHcc.length + uProker.length}</span></div>
     </div>
 
     <!-- INFO TAB -->
@@ -1824,7 +1825,7 @@ function renderDetail(code) {
         <div class="sec-title" style="color:var(--red)">⚠ Overdue Running Proker</div>
         <div class="tw"><table style="table-layout:fixed;width:100%">
           <colgroup>
-            <col style="width:220px"><col style="width:68px"><col style="width:62px"><col style="width:68px"><col style="width:60px"><col style="width:auto">
+            <col style="width:190px"><col style="width:60px"><col style="width:56px"><col style="width:60px"><col style="width:56px"><col style="width:auto"><col style="width:82px"><col style="width:48px">
           </colgroup>
           <thead><tr>
             <th style="font-size:9.5px">Deskripsi</th>
@@ -1833,6 +1834,8 @@ function renderDetail(code) {
             <th style="font-size:9.5px">LT Upd</th>
             <th style="font-size:9.5px">Selisih</th>
             <th style="font-size:9.5px">Remarks</th>
+            <th style="font-size:9.5px">No. WO</th>
+            <th style="font-size:9.5px">Aksi</th>
           </tr></thead>
           <tbody>${overdueProker.map(p=>{
             const selisih = p._ltUpd!=null && p.std ? Math.round(p._ltUpd - p.std) : null;
@@ -1843,6 +1846,8 @@ function renderDetail(code) {
               <td style="font-size:11px">${fmtN(p._ltUpd!=null?Math.round(p._ltUpd):null)}</td>
               <td style="font-size:11px"><span style="color:var(--red);font-weight:700">+${selisih!=null?selisih.toLocaleString():'-'}h</span></td>
               <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.rem||''}</td>
+              <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.wo||'-'}</td>
+              <td><button class="btn btn-outline btn-xs edit-action" data-edit-prok="${p._id||''}">Edit</button></td>
             </tr>`;
           }).join('')}</tbody>
         </table></div>
@@ -1881,7 +1886,7 @@ function renderDetail(code) {
         <div class="sec-title" style="color:#f97316">🔔 Caution Preparation Proker</div>
         <div class="tw"><table style="table-layout:fixed;width:100%">
           <colgroup>
-            <col style="width:220px"><col style="width:68px"><col style="width:62px"><col style="width:68px"><col style="width:70px"><col style="width:90px"><col style="width:auto">
+            <col style="width:190px"><col style="width:60px"><col style="width:56px"><col style="width:60px"><col style="width:62px"><col style="width:80px"><col style="width:auto"><col style="width:82px"><col style="width:48px">
           </colgroup>
           <thead><tr>
             <th style="font-size:9.5px">Deskripsi</th>
@@ -1891,6 +1896,8 @@ function renderDetail(code) {
             <th style="font-size:9.5px">Hrs Left</th>
             <th style="font-size:9.5px">Plan Date</th>
             <th style="font-size:9.5px">Remarks</th>
+            <th style="font-size:9.5px">No. WO</th>
+            <th style="font-size:9.5px">Aksi</th>
           </tr></thead>
           <tbody>${cautionProker.map(p=>{
             const hrsLeft = p.std && p._ltUpd!=null ? Math.round(p.std - p._ltUpd) : null;
@@ -1911,6 +1918,8 @@ function renderDetail(code) {
               <td style="font-size:11px"><span style="color:#f97316;font-weight:700">${hrsLeft!=null?hrsLeft.toLocaleString()+' h':'-'}</span></td>
               <td style="font-size:11px">${planDisplay}</td>
               <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.rem||''}</td>
+              <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.wo||'-'}</td>
+              <td><button class="btn btn-outline btn-xs edit-action" data-edit-prok="${p._id||''}">Edit</button></td>
             </tr>`;
           }).join('')}</tbody>
         </table></div>
@@ -1945,8 +1954,9 @@ function renderDetail(code) {
       </div>`:''}
     </div>
 
-    <!-- HCC TAB -->
-    <div id="tab-hcc" style="display:none">
+    <!-- HCC & PROKER TAB (digabung) -->
+    <div id="tab-hcc-proker" style="display:none">
+      <div class="sec-title" style="margin-top:0">📋 HCC <span class="sec-cnt">${uHcc.length}</span></div>
       <div class="frow">
         <input placeholder="Cari komponen..." id="hSrch" oninput="filterHcc()">
         <select id="hCat" onchange="filterHcc()" style="background:var(--s2);border:1px solid var(--bd);color:var(--t1);padding:5px 8px;border-radius:6px;font-size:11px">
@@ -1959,10 +1969,8 @@ function renderDetail(code) {
         <button class="btn btn-outline btn-sm" id="btnExportHcc">⬇</button>
       </div>
       <div id="hBody"></div>
-    </div>
 
-    <!-- PROKER TAB -->
-    <div id="tab-proker" style="display:none">
+      <div class="sec-title">⚙ Proker <span class="sec-cnt">${uProker.length}</span></div>
       <div class="frow">
         <input placeholder="Cari komponen..." id="pSrch" oninput="filterProk()">
         <select id="pSt" onchange="filterProk()" style="background:var(--s2);border:1px solid var(--bd);color:var(--t1);padding:5px 8px;border-radius:6px;font-size:11px">
@@ -1977,12 +1985,7 @@ function renderDetail(code) {
 
   // Wire up buttons using IDs (no inline onclick with code string)
   document.getElementById('btnEditUnit').onclick   = () => openEditUnit(code);
-  document.getElementById('btnAddComp').onclick    = () => {
-    // Detect active tab — if proker tab visible, open proker add; else HCC
-    const prokerTabVisible = document.getElementById('tab-proker')?.style.display === 'block';
-    if (prokerTabVisible) openProkerAdd(code);
-    else openCompModal(code);
-  };
+  document.getElementById('btnAddComp').onclick    = () => openCompModal(code);
   document.getElementById('btnAddComp2').onclick   = () => openCompModal(code);
   document.getElementById('btnAddProk').onclick    = () => openProkerAdd(code);
   document.getElementById('btnExportUnit').onclick = () => exportUnit(code);
@@ -1992,7 +1995,7 @@ function renderDetail(code) {
   // Tab switching
   document.getElementById(`dtabs-${code}`).addEventListener('click', function(e) {
     const tab = e.target.closest('.dtab')?.dataset.tab; if (!tab) return;
-    ['info','hcc','proker'].forEach((t,i) => {
+    ['info','hcc-proker'].forEach((t,i) => {
       document.getElementById(`tab-${t}`).style.display = t===tab?'block':'none';
       this.querySelectorAll('.dtab')[i].classList.toggle('active', t===tab);
     });
@@ -2008,6 +2011,13 @@ function renderDetail(code) {
     if (editProkBtn) { editProker(editProkBtn.dataset.editProk, code); return; }
     const delProkBtn = e.target.closest('[data-del-prok]');
     if (delProkBtn) { delProker(delProkBtn.dataset.delProk, code); return; }
+    const tplBtn = e.target.closest('[data-tpl-add]');
+    if (tplBtn) {
+      const desc = decodeURIComponent(tplBtn.dataset.tplDesc||'');
+      const std  = tplBtn.dataset.tplStd ? parseFloat(tplBtn.dataset.tplStd) : null;
+      openProkerAdd(tplBtn.dataset.tplAdd, desc, std);
+      return;
+    }
   });
 
   renderHccTab(code);
@@ -2154,6 +2164,28 @@ function renderHccTab(code, q='', cat='', st='') {
 }
 
 // ── PROKER TABLE ──
+// Ambil daftar deskripsi proker "master" untuk model unit ini, digabung dari semua unit
+// dengan Model Group Fleet yang sama (bukan field Model di record Proker itu sendiri,
+// karena field itu kadang kosong/beda penulisan antar unit). Dipakai supaya activity yang
+// sudah pernah dicatat di unit lain model yang sama tapi belum ada di unit ini bisa muncul
+// sebagai baris "belum ada data" — tanpa nulis apa pun sampai user benar-benar isi & simpan.
+function getModelProkerTemplate(code) {
+  const u = fleet.find(x=>x.unitCode===code);
+  const mg = ((u&&u.modelGroup) || (u&&u.model) || '').trim().toLowerCase();
+  if (!mg) return [];
+  const sameModelCodes = new Set(fleet.filter(x=>((x.modelGroup||x.model||'').trim().toLowerCase())===mg).map(x=>x.unitCode));
+  const byKey = new Map();
+  proker.forEach(p => {
+    if (!sameModelCodes.has(p.u)) return;
+    const key = (p.k||'').trim().toLowerCase();
+    if (!key) return;
+    const cur = byKey.get(key);
+    if (!cur) byKey.set(key, { k: p.k, std: p.std!=null ? p.std : null });
+    else if (cur.std == null && p.std != null) cur.std = p.std;
+  });
+  return [...byKey.values()];
+}
+
 function filterProk() {
   if (!selUnit) return;
   const q  = document.getElementById('pSrch')?.value||'';
@@ -2214,8 +2246,14 @@ function renderProkerTab(code, q='', st='') {
     return true;
   });
 
+  // Activity dari model yang sama yang belum ada datanya di unit ini — cuma tampil kalau
+  // tidak lagi filter status tertentu (Overdue/Caution/dst tidak relevan buat data kosong).
+  const existingKeys = new Set(allProker.map(p => (p.k||'').trim().toLowerCase()));
+  let missing = st ? [] : getModelProkerTemplate(code).filter(t => !existingKeys.has((t.k||'').trim().toLowerCase()));
+  if (q) missing = missing.filter(t => (t.k||'').toLowerCase().includes(q.toLowerCase()));
+
   const el = document.getElementById('pBody'); if (!el) return;
-  if (!rows.length) { el.innerHTML='<div class="empty"><p>Tidak ada data proker</p></div>'; return; }
+  if (!rows.length && !missing.length) { el.innerHTML='<div class="empty"><p>Tidak ada data proker</p></div>'; return; }
 
   const curHm = curHmPre;
   const mo2=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
@@ -2225,7 +2263,7 @@ function renderProkerTab(code, q='', st='') {
       <th>Deskripsi</th><th>HM Upd</th><th>Std LT</th>
       <th>Tgl Install</th><th>HM Install</th><th>LT Upd</th>
       <th>% Usage</th><th>Plan Date</th><th>Hrs Left</th><th>Ovd</th>
-      <th>Sts</th><th>Remarks</th><th>Aksi</th>
+      <th>Sts</th><th>Remarks</th><th>No. WO</th><th>Aksi</th>
     </tr></thead>
     <tbody>${rows.map(p => {
       const hmRemoveNext = effectiveHmRemove[p._id]; // null = masih aktif
@@ -2296,12 +2334,18 @@ function renderProkerTab(code, q='', st='') {
         <td>${ovdChip}</td>
         <td style="font-size:10px">${p.st||'-'}</td>
         <td title="${p.rem||''}">${p.rem||''}</td>
+        <td title="${p.wo||''}">${p.wo||'-'}</td>
         <td><div class="tbl-acts">
           <button class="btn btn-outline btn-xs edit-action" data-edit-prok="${p._id||''}">Edit</button>
           <button class="btn btn-red btn-xs edit-action"     data-del-prok="${p._id||''}">Hapus</button>
         </div></td>
       </tr>`;
-    }).join('')}</tbody></table></div>`;
+    }).join('')}${missing.map(t => `<tr style="opacity:.45">
+      <td title="${t.k}" style="font-style:italic">${t.k} <span style="font-size:9px;color:var(--t3);font-style:normal">· belum ada data unit ini</span></td>
+      <td>-</td><td>${fmtN(t.std)}</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+      <td style="font-size:10px">-</td><td>-</td><td>-</td>
+      <td><button class="btn btn-gold btn-xs edit-action" data-tpl-add="${code}" data-tpl-desc="${encodeURIComponent(t.k)}" data-tpl-std="${t.std!=null?t.std:''}">+ Isi</button></td>
+    </tr>`).join('')}</tbody></table></div>`;
 }
 
 // ── PROKER CRUD ──
@@ -2328,21 +2372,23 @@ function calcProkPct() {
   }
 }
 
-function openProkerAdd(code) {
+function openProkerAdd(code, prefillDesc, prefillStd) {
   editProkerId = null;
   document.getElementById('prokerModalTitle').textContent = 'Tambah Proker — '+code;
   document.getElementById('fp-unitCode').value   = code;
-  document.getElementById('fp-komponen').value   = '';
+  document.getElementById('fp-komponen').value   = prefillDesc || '';
   document.getElementById('fp-tglInstall').value = '';
   document.getElementById('fp-hmInstall').value  = '';
   document.getElementById('fp-hm').value         = hmMap[code]?.hm ? Math.round(hmMap[code].hm) : '';
   document.getElementById('fp-lt').value         = '';
-  document.getElementById('fp-std').value        = '';
+  document.getElementById('fp-std').value        = (prefillStd!=null && !isNaN(prefillStd)) ? prefillStd : '';
   document.getElementById('fp-pct').value        = '';
   document.getElementById('fp-hrs').value        = '';
   document.getElementById('fp-status').value     = '';
   document.getElementById('fp-rem').value        = '';
+  document.getElementById('fp-wo').value         = '';
   document.getElementById('prokerModal').classList.add('open');
+  if (prefillDesc) notify('Deskripsi & Std LT diisi dari template model — lengkapi Tgl/HM Install lalu simpan', 'ok');
 }
 
 function editProker(pid, code) {
@@ -2358,6 +2404,7 @@ function editProker(pid, code) {
   document.getElementById('fp-hrs').value        = p.hrs||'';
   document.getElementById('fp-status').value     = p.st||'';
   document.getElementById('fp-rem').value        = p.rem||'';
+  document.getElementById('fp-wo').value         = p.wo||'';
   // Recalc LT from hmInstall if available, else use stored lt
   if (p.hmInstall && p.hm) {
     document.getElementById('fp-lt').value = Math.max(0, p.hm - p.hmInstall).toFixed(1);
@@ -2382,14 +2429,20 @@ async function saveProker() {
   const lt       = !isNaN(ltRaw) ? ltRaw : null;
   const pct      = lt && std ? parseFloat(((lt/std)*100).toFixed(1)) : parseFloat(document.getElementById('fp-pct').value)||0;
   const hrs      = parseFloat(document.getElementById('fp-hrs').value)||null;
+  // Pertahankan record lama (m, plan, r1d/r1h/r2d/r2h dari data legacy) kalau ini edit —
+  // sebelumnya field-field ini selalu ketimpa null tiap kali proker diedit lewat form.
+  const existing  = editProkerId ? proker.find(p=>p._id===editProkerId&&p.u===code) : null;
+  const unitFleet = fleet.find(x=>x.unitCode===code) || {};
   const rec = {
+    ...(existing||{}),
     _id: editProkerId || (code+'_pk_'+Date.now()),
-    u: code, k, hm, hmInstall,
+    u: code, m: (existing&&existing.m) || unitFleet.modelGroup || unitFleet.model || '',
+    k, hm, hmInstall,
     tglInstall: document.getElementById('fp-tglInstall').value||null,
     std, lt, pct, hrs,
     st:  document.getElementById('fp-status').value.trim(),
     rem: document.getElementById('fp-rem').value.trim(),
-    plan: null, r1d:null, r1h:null, r2d:null, r2h:null,
+    wo:  document.getElementById('fp-wo').value.trim(),
   };
   const prevProker = proker;
   const isNew = !editProkerId;
@@ -2409,13 +2462,11 @@ async function saveProker() {
 function refreshUnitPreservingTab(code) {
   if (selUnit !== code) return;
   let activeTab = 'info';
-  if (document.getElementById('tab-hcc')?.style.display === 'block') activeTab = 'hcc';
-  else if (document.getElementById('tab-proker')?.style.display === 'block') activeTab = 'proker';
+  if (document.getElementById('tab-hcc-proker')?.style.display === 'block') activeTab = 'hcc-proker';
   renderDetail(code);
   if (activeTab !== 'info') {
     document.getElementById('tab-info').style.display='none';
-    document.getElementById('tab-hcc').style.display = activeTab==='hcc' ? 'block' : 'none';
-    document.getElementById('tab-proker').style.display = activeTab==='proker' ? 'block' : 'none';
+    document.getElementById('tab-hcc-proker').style.display = 'block';
     const dtabs = document.getElementById(`dtabs-${code}`);
     if (dtabs) dtabs.querySelectorAll('.dtab').forEach(el => el.classList.toggle('active', el.dataset.tab===activeTab));
   }
@@ -3344,7 +3395,7 @@ function renderGlobalData() {
     let rows = allRows;
     if (selSt) rows = rows.filter(r => r._st === selSt);
 
-    // Apply sort
+    // Apply sort (nama kolom sengaja disamakan dgn tab HCC di atas biar konsisten)
     if (gdSort.col) {
       const dir = gdSort.dir === 'asc' ? 1 : -1;
       rows = [...rows].sort((a,b) => {
@@ -3352,13 +3403,13 @@ function renderGlobalData() {
           case 'unit':       return cmpStr(a.u, b.u, dir);
           case 'model':      return cmpStr(modelOf(a.u), modelOf(b.u), dir);
           case 'deskripsi':  return cmpStr(a.k, b.k, dir);
-          case 'hmupd':      return cmpNum(parseFloat(a.hm), parseFloat(b.hm), dir);
-          case 'stdlt':      return cmpNum(a.std, b.std, dir);
           case 'tglinstall': return cmpNum(dateSortVal(a.tglInstall), dateSortVal(b.tglInstall), dir);
           case 'hminstall':  return cmpNum(a.hmInstall, b.hmInstall, dir);
-          case 'ltupd':      return cmpNum(a._ltUpd, b._ltUpd, dir);
-          case 'progress':   return cmpNum(a._pct, b._pct, dir);
+          case 'hmupdate':   return cmpNum(parseFloat(a.hm), parseFloat(b.hm), dir);
+          case 'lifetime':   return cmpNum(a._ltUpd, b._ltUpd, dir);
+          case 'targetlt':   return cmpNum(a.std, b.std, dir);
           case 'sisa':       return cmpNum(a._sisa, b._sisa, dir);
+          case 'progress':   return cmpNum(a._pct, b._pct, dir);
           case 'status':     return dir * ((rankSt[a._st]??4) - (rankSt[b._st]??4));
           default: return 0;
         }
@@ -3373,47 +3424,45 @@ function renderGlobalData() {
       <colgroup>
         <col style="width:34px">  <!-- # -->
         <col style="width:76px">  <!-- unit -->
-        <col style="width:90px">  <!-- model -->
+        <col style="width:86px">  <!-- model -->
+        <col style="width:50px">  <!-- kat -->
         <col style="width:190px"> <!-- deskripsi -->
-        <col style="width:66px">  <!-- hm upd -->
-        <col style="width:58px">  <!-- std lt -->
+        <col style="width:56px">  <!-- posisi -->
         <col style="width:100px"> <!-- tgl install -->
         <col style="width:80px">  <!-- hm install -->
-        <col style="width:58px">  <!-- lt upd -->
-        <col style="width:84px">  <!-- % usage -->
-        <col style="width:62px">  <!-- hrs left -->
-        <col style="width:86px">  <!-- plan date -->
+        <col style="width:84px">  <!-- hm update -->
+        <col style="width:68px">  <!-- lifetime -->
+        <col style="width:66px">  <!-- target lt -->
+        <col style="width:52px">  <!-- exc -->
+        <col style="width:58px">  <!-- sisa -->
+        <col style="width:84px">  <!-- progress -->
         <col style="width:66px">  <!-- status -->
         <col style="width:44px">  <!-- sts -->
-        <col style="width:145px"> <!-- remarks -->
+        <col style="width:145px"> <!-- remark -->
       </colgroup>
       <thead><tr>
-        <th>#</th>${gdThSort('Unit','unit')}${gdThSort('Model','model')}${gdThSort('Deskripsi','deskripsi')}
-        ${gdThSort('HM Upd','hmupd')}${gdThSort('Std LT','stdlt')}${gdThSort('Tgl Install','tglinstall')}${gdThSort('HM Install','hminstall')}
-        ${gdThSort('LT Upd','ltupd')}${gdThSort('% Usage','progress')}${gdThSort('Hrs Left','sisa')}<th>Plan Date</th>${gdThSort('Status','status')}<th>Sts</th><th>Remarks</th>
+        <th>#</th>${gdThSort('Unit','unit')}${gdThSort('Model','model')}<th>Kat</th>${gdThSort('Deskripsi','deskripsi')}
+        <th>Posisi</th>${gdThSort('Tgl Install','tglinstall')}${gdThSort('HM Install','hminstall')}${gdThSort('HM Update','hmupdate')}
+        ${gdThSort('Lifetime','lifetime')}${gdThSort('Target LT','targetlt')}<th>Exc</th>${gdThSort('Sisa','sisa')}${gdThSort('Progress','progress')}${gdThSort('Status','status')}<th>Sts</th><th>Remark</th>
       </tr></thead>
       <tbody>${rows.map((p,i) => {
         const u = fleet.find(x=>x.unitCode===p.u)||{};
         const barColor = p._st==='overdue'?'var(--red)':p._st==='caution'?'#f97316':'var(--green)';
-        let planDisp = '-';
-        if (p._st!=='overdue' && p._sisa!=null && p._sisa>0) {
-          const avg = p.hrs||18;
-          const d = new Date(); d.setDate(d.getDate()+Math.round(p._sisa/avg));
-          planDisp = `${d.getDate()} ${mo2[d.getMonth()]} ${d.getFullYear()}`;
-        } else if (p._st==='overdue') planDisp = '<span class="st-chip st-overdue">Overdue</span>';
         return `<tr>
           <td style="color:var(--t3);font-size:10px">${i+1}</td>
           <td style="overflow:hidden;text-overflow:ellipsis"><span class="unit-link" onclick="closeGlobalData();gotoUnit('${p.u}')">${p.u}</span></td>
           <td style="color:var(--t2);overflow:hidden;text-overflow:ellipsis" title="${u.modelGroup||u.model||''}">${u.modelGroup||u.model||''}</td>
+          <td style="text-align:center;color:var(--t3)">-</td>
           <td style="overflow:hidden;text-overflow:ellipsis" title="${p.k||''}">${p.k||''}</td>
-          <td>${fmtN(p.hm)}</td>
-          <td style="font-weight:600">${fmtN(p.std)}</td>
+          <td style="text-align:center;color:var(--t3)">-</td>
           <td style="color:var(--t1);overflow:hidden;text-overflow:ellipsis">${fmtDate(p.tglInstall)}</td>
           <td>${fmtN(p.hmInstall)}</td>
-          <td>${p._ltUpd!=null?fmtN(Math.round(p._ltUpd)):'-'}</td>
-          <td><div class="hrs-bar-wrap"><div class="hrs-bar"><div class="hrs-bar-fill" style="width:${Math.min(p._pct,100)}%;background:${barColor}"></div></div><span style="font-size:10px;color:var(--t3)">${p._pct.toFixed(0)}%</span></div></td>
+          <td>${fmtN(p.hm)}</td>
+          <td><b style="color:var(--gold)">${p._ltUpd!=null?Math.round(p._ltUpd).toLocaleString()+'h':'-'}</b></td>
+          <td style="font-weight:700">${p.std!=null?fmtN(p.std):'-'}</td>
+          <td style="text-align:center;color:var(--t3)">-</td>
           <td style="font-weight:700;color:${p._sisa!=null&&p._sisa<0?'var(--red)':p._sisa!=null&&p._sisa<750?'#f97316':'var(--t2)'}">${p._sisa!=null?Math.round(p._sisa).toLocaleString()+'h':'-'}</td>
-          <td>${planDisp}</td>
+          <td><div class="hrs-bar-wrap"><div class="hrs-bar"><div class="hrs-bar-fill" style="width:${Math.min(p._pct,100)}%;background:${barColor}"></div></div><span style="font-size:10px;color:var(--t3);flex-shrink:0">${p._pct.toFixed(0)}%</span></div></td>
           <td>${p._st?chip(p._st):'-'}</td>
           <td style="color:var(--t2)">${p.st||'-'}</td>
           <td style="overflow:hidden;text-overflow:ellipsis;color:var(--t2)" title="${p.rem||''}">${p.rem||''}</td>
