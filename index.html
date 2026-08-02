@@ -821,7 +821,7 @@ body.viewer-mode .viewer-badge{display:inline-flex}
         <span id="dkChevron" style="transition:transform .15s">▾</span>
       </button>
       <div id="dkSubmenu" style="display:none;flex-direction:column;gap:4px;margin-top:6px">
-        <button class="btn btn-outline btn-sm" style="width:100%;font-size:10.5px;justify-content:flex-start" onclick="openGlobalData()">📋 General Data HCC</button>
+        <button class="btn btn-outline btn-sm" style="width:100%;font-size:10.5px;justify-content:flex-start" onclick="openGlobalData()">📋 General Data HCC &amp; Proker</button>
       </div>
     </div>
     <div class="sf-wrap">
@@ -865,7 +865,7 @@ body.viewer-mode .viewer-badge{display:inline-flex}
     <button class="back-btn" onclick="closeGlobalData()">← Kembali</button>
     <div class="gd-title">Data Komponen</div>
     <div class="gd-tabs">
-      <button class="gd-tab-btn active" id="gdActiveTabLabel">📋 General Data HCC</button>
+      <button class="gd-tab-btn active" id="gdActiveTabLabel">📋 General Data HCC &amp; Proker</button>
     </div>
   </div>
 
@@ -1702,7 +1702,7 @@ function renderDetail(code) {
 
     <div class="dtabs" id="dtabs-${code}">
       <div class="dtab active" data-tab="info">ℹ Info</div>
-      <div class="dtab" data-tab="hcc-proker">📋 HCC <span class="sec-cnt">${uHcc.length}</span></div>
+      <div class="dtab" data-tab="hcc-proker">📋 HCC &amp; Proker <span class="sec-cnt">${uHcc.length}</span></div>
     </div>
 
     <!-- INFO TAB -->
@@ -2060,7 +2060,7 @@ function editHcc(id, code) {
   document.getElementById('fc-posRH').value=pos[1]||'-';
   document.getElementById('fc-posNo').value=pos[2]||'';
   document.getElementById('fc-pn').value=r.pn||'';
-  document.getElementById('fc-dateInstalled').value=r.dt||r.dateInstalled||'';
+  document.getElementById('fc-dateInstalled').value=normalizeDate(r.dt||r.dateInstalled||'');
   document.getElementById('fc-hmInstall').value=r.hi??r.hmInstall??'';
   document.getElementById('fc-hmRemove').value=r.hr??r.hmRemove??'Running';
   document.getElementById('fc-lifeTime').value=r.lt??r.lifeTime??'';
@@ -2548,7 +2548,7 @@ function toggleDataKomponenMenu() {
 
 function openGlobalData() {
   document.getElementById('gdPage').classList.add('open');
-  document.getElementById('gdActiveTabLabel').textContent = '📋 General Data HCC';
+  document.getElementById('gdActiveTabLabel').textContent = '📋 General Data HCC & Proker';
   document.getElementById('gdStatus').value = '';
   document.getElementById('gdYear').value = '';
   document.getElementById('gdMonth').value = '';
@@ -2607,7 +2607,7 @@ function buildCombinedRows(hccList) {
                 : (isRun && curHm && hi!=null ? curHm-hi : (r.lt??r.lifeTime));
     const tgt   = r.targetLt;
     const sisa  = tgt!=null && lt!=null ? tgt-lt : null;
-    const hmUpdRaw = isRun ? curHm : (r.hr??r.hmRemove);
+    const hmUpdRaw = ac.isClosed ? ac.closedAtHm : (isRun ? curHm : (r.hr??r.hmRemove));
     const hmUpdVal = typeof hmUpdRaw==='number' ? hmUpdRaw : (parseFloat(hmUpdRaw)||null);
     let st = null;
     if (ac.isClosed) st = 'done';
