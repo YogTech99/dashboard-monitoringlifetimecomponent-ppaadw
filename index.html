@@ -821,7 +821,7 @@ body.viewer-mode .viewer-badge{display:inline-flex}
         <span id="dkChevron" style="transition:transform .15s">▾</span>
       </button>
       <div id="dkSubmenu" style="display:none;flex-direction:column;gap:4px;margin-top:6px">
-        <button class="btn btn-outline btn-sm" style="width:100%;font-size:10.5px;justify-content:flex-start" onclick="openGlobalData()">📋⚙ General Data HCC & Proker</button>
+        <button class="btn btn-outline btn-sm" style="width:100%;font-size:10.5px;justify-content:flex-start" onclick="openGlobalData()">📋 General Data HCC</button>
       </div>
     </div>
     <div class="sf-wrap">
@@ -865,7 +865,7 @@ body.viewer-mode .viewer-badge{display:inline-flex}
     <button class="back-btn" onclick="closeGlobalData()">← Kembali</button>
     <div class="gd-title">Data Komponen</div>
     <div class="gd-tabs">
-      <button class="gd-tab-btn active" id="gdActiveTabLabel">📋⚙ General Data HCC & Proker</button>
+      <button class="gd-tab-btn active" id="gdActiveTabLabel">📋 General Data HCC</button>
     </div>
   </div>
 
@@ -1086,7 +1086,7 @@ body.viewer-mode .viewer-badge{display:inline-flex}
         <div class="fg"><label>Lifetime (h)</label><input id="fc-lifeTime" type="number" readonly placeholder="Auto-hitung">
           <div class="fg-hint">HM Update − HM Install</div></div>
         <div class="fg"><label>Target Lifetime (h)</label><input id="fc-targetLt" type="number" step="0.1" placeholder="Std lifetime komponen">
-          <div class="fg-hint">Dari Proker / spesifikasi</div></div>
+          <div class="fg-hint">Dari spesifikasi komponen</div></div>
         <div class="fg"><label>Eksekusi (Exc)</label>
           <select id="fc-exc">
             <option value="">-</option>
@@ -1105,38 +1105,6 @@ body.viewer-mode .viewer-badge{display:inline-flex}
       <div class="form-acts">
         <button class="btn btn-outline btn-sm" onclick="closeCompModal()">Batal</button>
         <button class="btn btn-gold btn-sm" onclick="saveComp()">💾 Simpan</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- PROKER MODAL -->
-<div class="modal-bg" id="prokerModal">
-  <div class="modal">
-    <div class="modal-hdr"><h3 id="prokerModalTitle">Edit Proker</h3><button class="modal-close" onclick="closeProkerModal()">×</button></div>
-    <div class="modal-body">
-      <div class="form-grid">
-        <div class="fg"><label>Unit Code</label><input id="fp-unitCode" readonly style="opacity:.6"></div>
-        <div class="fg"><label>Status</label><input id="fp-status" placeholder="FIX, CND..."></div>
-        <div class="fg fg-full"><label>Deskripsi Komponen *</label><input id="fp-komponen" placeholder="Nama pekerjaan proker"></div>
-        <div class="fg"><label>Tgl Install</label><input id="fp-tglInstall" type="date"></div>
-        <div class="fg"><label>HM Install *</label><input id="fp-hmInstall" type="number" step="0.1" placeholder="HM saat install" oninput="calcProkLt()"></div>
-        <div class="fg"><label>HM Update</label><input id="fp-hm" type="number" step="0.1" placeholder="HM unit terkini" oninput="calcProkLt()"></div>
-        <div class="fg"><label>Lifetime (h)</label><input id="fp-lt" type="number" step="0.1" readonly style="opacity:.7;background:var(--s1)" placeholder="Auto-hitung">
-          <div class="fg-hint">HM Update − HM Install (otomatis)</div></div>
-        <div class="fg"><label>Target Lifetime (h) *</label><input id="fp-std" type="number" step="0.1" placeholder="Std lifetime komponen" oninput="calcProkPct()"></div>
-        <div class="fg"><label>No. WO</label><input id="fp-wo" placeholder="Nomor WO"></div>
-        <div class="fg fg-full"><label>Remark</label><textarea id="fp-rem" rows="2" placeholder="Normal, Overdue, dst..."></textarea></div>
-        <!-- hidden fields (masih dipakai buat itungan internal, cuma nggak ditampilin di form) -->
-        <input type="hidden" id="fp-pct">
-        <input type="hidden" id="fp-hrs">
-        <input type="hidden" id="fp-plan">
-        <input type="hidden" id="fp-r1d"><input type="hidden" id="fp-r1h">
-        <input type="hidden" id="fp-r2d"><input type="hidden" id="fp-r2h">
-      </div>
-      <div class="form-acts">
-        <button class="btn btn-outline btn-sm" onclick="closeProkerModal()">Batal</button>
-        <button class="btn btn-gold btn-sm" onclick="saveProker()">💾 Simpan</button>
       </div>
     </div>
   </div>
@@ -1168,7 +1136,7 @@ let fleet=[], proker=[], hcc=[], hmMap={};
 // Dipakai buat blokir save() supaya snapshot lama nggak pernah ketimpa ke sheet live, dan buat banner peringatan.
 let usingFallback = { fleet:false, hcc:false, proker:false };
 let selModel=null, selUnit=null;
-let editUnitId=null, editCompId=null, editProkerId=null;
+let editUnitId=null, editCompId=null;
 let hmPrev=null, cfmCb=null;
 let hccSort={col:null, dir:'asc'}; // sort state for HCC table (dipakai tabel General Data lama, dibiarkan biar aman)
 let hpSort={col:null, dir:'asc'};  // sort state for per-unit HCC & Proker table gabungan
@@ -1248,33 +1216,6 @@ function rowToHcc(row, idx, code) {
     rm: row['Remark'] || '', remark: row['Remark'] || ''
   };
 }
-function prokerToRow(p) {
-  return {
-    'Unit': p.u || '', 'Model': p.m || '', 'Deskripsi': p.k || '', 'HM Update': p.hm != null ? p.hm : '',
-    'Std LT': p.std != null ? p.std : '', 'Tgl Install': p.tglInstall || '',
-    'HM Install': p.hmInstall != null ? p.hmInstall : '', 'LT Update': p.lt != null ? p.lt : '',
-    '% Usage': p.pct != null ? p.pct : '', 'Hrs Left': p.hrs != null ? p.hrs : '',
-    'Plan Date': p.plan != null ? p.plan : '', 'Status': '', 'Sts': p.st || '',
-    'Remarks': p.rem || '', 'No. WO': p.wo || ''
-  };
-}
-function rowToProker(row, idx) {
-  const safeNum = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
-  return {
-    _id: 'pk' + idx + '_' + Math.random().toString(36).slice(2),
-    u: row['Unit'] || '', m: row['Model'] || '', k: row['Deskripsi'] || '',
-    hm: safeNum(row['HM Update']),
-    std: safeNum(row['Std LT']),
-    tglInstall: row['Tgl Install'] || '',
-    hmInstall: safeNum(row['HM Install']),
-    lt: safeNum(row['LT Update']),
-    pct: safeNum(row['% Usage']),
-    hrs: safeNum(row['Hrs Left']),
-    plan: row['Plan Date'] || null, st: row['Sts'] || '', rem: row['Remarks'] || '',
-    wo: row['No. WO'] || ''
-  };
-}
-
 async function apiPost(sheet, rows) {
   try {
     const res = await fetch(API_URL, {
@@ -1365,17 +1306,16 @@ async function load() {
       : HCC_INIT.map(r=>({...r}));
     usingFallback.hcc = !hccLive;
 
-    const prokerLive = !!(data.proker && data.proker.length);
-    proker = prokerLive
-      ? data.proker.map((row,i) => rowToProker(row, i))
-      : PROKER_INIT.map(p=>({...p}));
-    usingFallback.proker = !prokerLive;
+    // Proker sudah tidak dipakai lagi (semua digabung manual ke HCC) — selalu kosong, gak
+    // pernah baca sheet 'Proker' atau fallback ke PROKER_INIT, dan gak ikut nge-trigger banner.
+    proker = [];
+    usingFallback.proker = false;
   } catch (e) {
     console.error('Gagal memuat data dari server:', e);
     fleet  = FLEET_INIT.map(u=>({...u}));
-    proker = PROKER_INIT.map(p=>({...p}));
+    proker = [];
     hcc    = HCC_INIT.map(r=>({...r}));
-    usingFallback = { fleet:true, hcc:true, proker:true };
+    usingFallback = { fleet:true, hcc:true, proker:false };
     // Fallback ke cache localStorage kalau server gagal
     try {
       hmMap = JSON.parse(localStorage.getItem('adw-hm-cache') || '{}');
@@ -1437,19 +1377,6 @@ async function saveHccOnly() {
   beginSaving();
   try {
     const ok = await apiPost('hcc', hcc.map(hccToRow));
-    if (!ok) { notify('Gagal menyimpan data ke server! Coba lagi.', 'err'); return false; }
-    return true;
-  } finally { endSaving(); }
-}
-
-async function saveP() {
-  if (usingFallback.proker) {
-    notify('⚠️ Data Proker belum berhasil dimuat dari server (masih pakai data cadangan lama) — perubahan TIDAK disimpan, biar data lama gak nimpa data live. Refresh halaman dulu.', 'err');
-    return false;
-  }
-  beginSaving();
-  try {
-    const ok = await apiPost('proker', proker.map(prokerToRow));
     if (!ok) { notify('Gagal menyimpan data ke server! Coba lagi.', 'err'); return false; }
     return true;
   } finally { endSaving(); }
@@ -1559,13 +1486,13 @@ function confirmDeleteSelected() {
   if (guardEdit()) return;
   if (unitsToDelete.size === 0) { notify('Pilih unit yang ingin dihapus dulu','err'); return; }
   const codes = [...unitsToDelete];
-  showCfm(`Hapus ${codes.length} Unit?`, `Unit terpilih beserta semua data HCC dan Proker-nya akan dihapus permanen: ${codes.join(', ')}`, async () => {
+  showCfm(`Hapus ${codes.length} Unit?`, `Unit terpilih beserta semua data HCC-nya akan dihapus permanen: ${codes.join(', ')}`, async () => {
     const prevFleet = fleet, prevHcc = hcc, prevProker = proker;
     fleet  = fleet.filter(u=>!unitsToDelete.has(u.unitCode));
     hcc    = hcc.filter(r=>!unitsToDelete.has(r.u||r.unitCode));
     proker = proker.filter(p=>!unitsToDelete.has(p.u));
-    const [ok1, ok2] = await Promise.all([save(), saveP()]);
-    if (!ok1 || !ok2) { fleet=prevFleet; hcc=prevHcc; proker=prevProker; applyFilters(); return; } // batal, save() sudah nunjukin toast error
+    const ok = await save();
+    if (!ok) { fleet=prevFleet; hcc=prevHcc; proker=prevProker; applyFilters(); return; } // batal, save() sudah nunjukin toast error
     if (selUnit && unitsToDelete.has(selUnit)) { selUnit=null; showEmpty(); }
     notify(`${codes.length} unit dihapus`, 'ok');
     toggleDeleteMode();
@@ -1702,8 +1629,8 @@ function delUnit(code) {
     fleet  = fleet.filter(u=>u.unitCode!==code);
     hcc    = hcc.filter(r=>(r.u||r.unitCode)!==code);
     proker = proker.filter(p=>p.u!==code);
-    const [ok1, ok2] = await Promise.all([save(), saveP()]);
-    if (!ok1 || !ok2) { fleet=prevFleet; hcc=prevHcc; proker=prevProker; applyFilters(); return; }
+    const ok = await save();
+    if (!ok) { fleet=prevFleet; hcc=prevHcc; proker=prevProker; applyFilters(); return; }
     if (selUnit===code) { selUnit=null; showEmpty(); }
     applyFilters();
     notify(`Unit "${code}" dihapus`, 'ok');
@@ -1719,8 +1646,8 @@ function delMG(mg) {
     fleet  = fleet.filter(u=>(u.modelGroup||u.model)!==mg);
     hcc    = hcc.filter(r=>!codes.has(r.u||r.unitCode));
     proker = proker.filter(p=>!codes.has(p.u));
-    const [ok1, ok2] = await Promise.all([save(), saveP()]);
-    if (!ok1 || !ok2) { fleet=prevFleet; hcc=prevHcc; proker=prevProker; applyFilters(); return; }
+    const ok = await save();
+    if (!ok) { fleet=prevFleet; hcc=prevHcc; proker=prevProker; applyFilters(); return; }
     if (selUnit && codes.has(selUnit)) { selUnit=null; showEmpty(); }
     applyFilters();
     notify(`Model "${mg}" dihapus`, 'ok');
@@ -1739,39 +1666,6 @@ function renderDetail(code) {
   const hccAutoCloseMap = getHccAutoCloseMap(code);
   const running = uHcc.filter(r=>isHccRunning(r, hccAutoCloseMap));
   const majorRun= running.filter(r=>{const c=r.cat||r.compCategory||'';return c==='MAJOR'||c==='MAYOR';});
-  const uProker = proker.filter(p=>p.u===code);
-
-  // Build auto-close map: same as renderProkerTab logic
-  const byDescInfo = {};
-  uProker.forEach(p => {
-    const key = (p.k||'').trim().toLowerCase();
-    if (!byDescInfo[key]) byDescInfo[key] = [];
-    byDescInfo[key].push(p);
-  });
-  Object.values(byDescInfo).forEach(grp => grp.sort((a,b)=>(a.hmInstall||0)-(b.hmInstall||0)));
-  const effectiveHmRemoveInfo = {};
-  Object.values(byDescInfo).forEach(grp => {
-    for (let i=0; i<grp.length; i++) {
-      effectiveHmRemoveInfo[grp[i]._id] = i < grp.length-1 ? grp[i+1].hmInstall : null;
-    }
-  });
-
-  // Compute effective LT for each proker record
-  const prokerWithLt = uProker.map(p => {
-    const hmRemoveNext = effectiveHmRemoveInfo[p._id];
-    const isClosed = hmRemoveNext != null;
-    let ltUpd;
-    if (isClosed && p.hmInstall!=null) ltUpd = Math.max(0, hmRemoveNext - p.hmInstall);
-    else if (!isClosed && p.hmInstall!=null && curHm!=null) ltUpd = Math.max(0, curHm - p.hmInstall);
-    else ltUpd = p.lt;
-    return {...p, _ltUpd:ltUpd, _isClosed:isClosed};
-  });
-
-  // Overdue: only active (not closed) records where ltUpd > std
-  const overdueProker = prokerWithLt.filter(p => !p._isClosed && p.std && p._ltUpd!=null && p._ltUpd > p.std);
-  // Caution: only active records where hrs left < 750 and not overdue
-  const cautionProker = prokerWithLt.filter(p => !p._isClosed && p.std && p._ltUpd!=null && p._ltUpd <= p.std && (p.std - p._ltUpd) < 750);
-
   // HCC lifetime status — logic sama persis dengan General Data HCC (renderGlobalData)
   // supaya status Overdue/Caution HCC konsisten di semua tampilan, termasuk tab Info ini.
   const hccWithStatus = uHcc.map(r => {
@@ -1808,7 +1702,7 @@ function renderDetail(code) {
 
     <div class="dtabs" id="dtabs-${code}">
       <div class="dtab active" data-tab="info">ℹ Info</div>
-      <div class="dtab" data-tab="hcc-proker">📋⚙ HCC &amp; Proker <span class="sec-cnt">${uHcc.length + uProker.length}</span></div>
+      <div class="dtab" data-tab="hcc-proker">📋 HCC <span class="sec-cnt">${uHcc.length}</span></div>
     </div>
 
     <!-- INFO TAB -->
@@ -1816,45 +1710,13 @@ function renderDetail(code) {
       <div class="cards">
         <div class="card"><div class="card-lbl">Status</div><div style="margin-top:3px">${on?'<span class="chip ch-on">ON SITE</span>':'<span class="chip ch-off">'+(u.statusUnit||'OFF')+'</span>'}</div></div>
         <div class="card"><div class="card-lbl">HM Update</div><div class="card-val cg">${curHm?Math.round(curHm).toLocaleString():'-'}</div><div class="card-sub">${fmtDate(hmDate)||'belum upload'}</div></div>
-        <div class="card"><div class="card-lbl">Overdue</div><div class="card-val ${(overdueProker.length+overdueHcc.length)>0?'cr':''}">${overdueProker.length+overdueHcc.length}</div><div class="card-sub">${overdueProker.length} proker · ${overdueHcc.length} hcc</div></div>
-        <div class="card"><div class="card-lbl">Caution</div><div class="card-val ${(cautionProker.length+cautionHcc.length)>0?'cg':''}" style="${(cautionProker.length+cautionHcc.length)>0?'color:#f97316':''}">${cautionProker.length+cautionHcc.length}</div><div class="card-sub">${cautionProker.length} proker · ${cautionHcc.length} hcc</div></div>
+        <div class="card"><div class="card-lbl">Overdue</div><div class="card-val ${overdueHcc.length>0?'cr':''}">${overdueHcc.length}</div></div>
+        <div class="card"><div class="card-lbl">Caution</div><div class="card-val ${cautionHcc.length>0?'cg':''}" style="${cautionHcc.length>0?'color:#f97316':''}">${cautionHcc.length}</div></div>
         <div class="card"><div class="card-lbl">Total HCC</div><div class="card-val">${uHcc.length}</div></div>
       </div>
 
-      ${overdueProker.length>0?`<div class="sec">
-        <div class="sec-title" style="color:var(--red)">⚠ Overdue Running Proker</div>
-        <div class="tw"><table style="table-layout:fixed;width:100%">
-          <colgroup>
-            <col style="width:190px"><col style="width:60px"><col style="width:56px"><col style="width:60px"><col style="width:56px"><col style="width:auto"><col style="width:82px"><col style="width:48px">
-          </colgroup>
-          <thead><tr>
-            <th style="font-size:9.5px">Deskripsi</th>
-            <th style="font-size:9.5px">HM Upd</th>
-            <th style="font-size:9.5px">Std LT</th>
-            <th style="font-size:9.5px">LT Upd</th>
-            <th style="font-size:9.5px">Selisih</th>
-            <th style="font-size:9.5px">Remarks</th>
-            <th style="font-size:9.5px">No. WO</th>
-            <th style="font-size:9.5px">Aksi</th>
-          </tr></thead>
-          <tbody>${overdueProker.map(p=>{
-            const selisih = p._ltUpd!=null && p.std ? Math.round(p._ltUpd - p.std) : null;
-            return `<tr>
-              <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.k||''}">${p.k||''}</td>
-              <td style="font-size:11px">${fmtN(p.hm)}</td>
-              <td style="font-size:11px">${fmtN(p.std)}</td>
-              <td style="font-size:11px">${fmtN(p._ltUpd!=null?Math.round(p._ltUpd):null)}</td>
-              <td style="font-size:11px"><span style="color:var(--red);font-weight:700">+${selisih!=null?selisih.toLocaleString():'-'}h</span></td>
-              <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.rem||''}</td>
-              <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.wo||'-'}</td>
-              <td><button class="btn btn-outline btn-xs edit-action" data-edit-prok="${p._id||''}">Edit</button></td>
-            </tr>`;
-          }).join('')}</tbody>
-        </table></div>
-      </div>`:'<div class="sec"><div style="text-align:center;padding:16px;color:var(--t3);font-size:12px">✅ Tidak ada proker overdue</div></div>'}
-
       ${overdueHcc.length>0?`<div class="sec">
-        <div class="sec-title" style="color:var(--red)">⚠ Overdue Lifetime HCC</div>
+        <div class="sec-title" style="color:var(--red)">⚠ Overdue</div>
         <div class="tw"><table style="table-layout:fixed;width:100%">
           <colgroup>
             <col style="width:56px"><col style="width:160px"><col style="width:70px"><col style="width:64px"><col style="width:64px"><col style="width:auto"><col style="width:80px"><col style="width:48px">
@@ -1884,53 +1746,10 @@ function renderDetail(code) {
             </tr>`;
           }).join('')}</tbody>
         </table></div>
-      </div>`:''}
-
-      ${cautionProker.length>0?`<div class="sec">
-        <div class="sec-title" style="color:#f97316">🔔 Caution Preparation Proker</div>
-        <div class="tw"><table style="table-layout:fixed;width:100%">
-          <colgroup>
-            <col style="width:190px"><col style="width:60px"><col style="width:56px"><col style="width:60px"><col style="width:62px"><col style="width:80px"><col style="width:auto"><col style="width:82px"><col style="width:48px">
-          </colgroup>
-          <thead><tr>
-            <th style="font-size:9.5px">Deskripsi</th>
-            <th style="font-size:9.5px">HM Upd</th>
-            <th style="font-size:9.5px">Std LT</th>
-            <th style="font-size:9.5px">LT Upd</th>
-            <th style="font-size:9.5px">Hrs Left</th>
-            <th style="font-size:9.5px">Plan Date</th>
-            <th style="font-size:9.5px">Remarks</th>
-            <th style="font-size:9.5px">No. WO</th>
-            <th style="font-size:9.5px">Aksi</th>
-          </tr></thead>
-          <tbody>${cautionProker.map(p=>{
-            const hrsLeft = p.std && p._ltUpd!=null ? Math.round(p.std - p._ltUpd) : null;
-            let planDisplay = '-';
-            if (hrsLeft!=null && hrsLeft > 0) {
-              const avgDailyHm = p.hrs && p.hrs > 0 ? p.hrs : 18;
-              const sisaHari = Math.round(hrsLeft / avgDailyHm);
-              const planCalc = new Date();
-              planCalc.setDate(planCalc.getDate() + sisaHari);
-              const mo2=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-              planDisplay = `${planCalc.getDate()} ${mo2[planCalc.getMonth()]} ${planCalc.getFullYear()}`;
-            }
-            return `<tr>
-              <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.k||''}">${p.k||''}</td>
-              <td style="font-size:11px">${fmtN(p.hm)}</td>
-              <td style="font-size:11px">${fmtN(p.std)}</td>
-              <td style="font-size:11px">${fmtN(p.lt)}</td>
-              <td style="font-size:11px"><span style="color:#f97316;font-weight:700">${hrsLeft!=null?hrsLeft.toLocaleString()+' h':'-'}</span></td>
-              <td style="font-size:11px">${planDisplay}</td>
-              <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.rem||''}</td>
-              <td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.wo||'-'}</td>
-              <td><button class="btn btn-outline btn-xs edit-action" data-edit-prok="${p._id||''}">Edit</button></td>
-            </tr>`;
-          }).join('')}</tbody>
-        </table></div>
-      </div>`:''}
+      </div>`:'<div class="sec"><div style="text-align:center;padding:16px;color:var(--t3);font-size:12px">✅ Tidak ada yang overdue</div></div>'}
 
       ${cautionHcc.length>0?`<div class="sec">
-        <div class="sec-title" style="color:#f97316">🔔 Caution Lifetime HCC</div>
+        <div class="sec-title" style="color:#f97316">🔔 Caution</div>
         <div class="tw"><table style="table-layout:fixed;width:100%">
           <colgroup>
             <col style="width:56px"><col style="width:160px"><col style="width:70px"><col style="width:64px"><col style="width:64px"><col style="width:auto"><col style="width:80px"><col style="width:48px">
@@ -1962,7 +1781,7 @@ function renderDetail(code) {
       </div>`:''}
     </div>
 
-    <!-- HCC & PROKER TAB (satu tabel gabungan, format ngikutin HCC) -->
+    <!-- HCC TAB -->
     <div id="tab-hcc-proker" style="display:none">
       <div class="frow">
         <input placeholder="Cari komponen..." id="hpSrch" oninput="filterHccProker()">
@@ -1973,9 +1792,7 @@ function renderDetail(code) {
           <option value="">Semua Status</option><option value="overdue">Overdue</option><option value="caution">Caution</option><option value="normal">Normal</option><option value="done">Done</option>
         </select>
         <button class="btn btn-gold btn-sm edit-action" id="btnAddComp2">+ HCC</button>
-        <button class="btn btn-gold btn-sm edit-action" id="btnAddProk">+ Proker</button>
         <button class="btn btn-outline btn-sm" id="btnExportHcc">⬇ HCC</button>
-        <button class="btn btn-outline btn-sm" id="btnExportProker">⬇ Proker</button>
       </div>
       <div id="hpBody"></div>
     </div>
@@ -1985,10 +1802,8 @@ function renderDetail(code) {
   document.getElementById('btnEditUnit').onclick   = () => openEditUnit(code);
   document.getElementById('btnAddComp').onclick    = () => openCompModal(code);
   document.getElementById('btnAddComp2').onclick   = () => openCompModal(code);
-  document.getElementById('btnAddProk').onclick    = () => openProkerAdd(code);
   document.getElementById('btnExportUnit').onclick = () => exportUnit(code);
   document.getElementById('btnExportHcc').onclick  = () => exportUnit(code);
-  document.getElementById('btnExportProker').onclick= () => exportUnitProker(code);
 
   // Tab switching
   document.getElementById(`dtabs-${code}`).addEventListener('click', function(e) {
@@ -2005,17 +1820,6 @@ function renderDetail(code) {
     if (editBtn) { editHcc(editBtn.dataset.editHcc, code); return; }
     const delHccBtn = e.target.closest('[data-del-hcc]');
     if (delHccBtn) { delHcc(delHccBtn.dataset.delHcc, code); return; }
-    const editProkBtn = e.target.closest('[data-edit-prok]');
-    if (editProkBtn) { editProker(editProkBtn.dataset.editProk, code); return; }
-    const delProkBtn = e.target.closest('[data-del-prok]');
-    if (delProkBtn) { delProker(delProkBtn.dataset.delProk, code); return; }
-    const tplBtn = e.target.closest('[data-tpl-add]');
-    if (tplBtn) {
-      const desc = decodeURIComponent(tplBtn.dataset.tplDesc||'');
-      const std  = tplBtn.dataset.tplStd ? parseFloat(tplBtn.dataset.tplStd) : null;
-      openProkerAdd(tplBtn.dataset.tplAdd, desc, std);
-      return;
-    }
   });
 
   renderHccProkerTab(code);
@@ -2050,35 +1854,9 @@ function gdSortBy(col) {
   renderGlobalData();
 }
 
-// ── PROKER TABLE ──
-// Ambil daftar deskripsi proker "master" untuk model unit ini, digabung dari semua unit
-// dengan Model Group Fleet yang sama (bukan field Model di record Proker itu sendiri,
-// karena field itu kadang kosong/beda penulisan antar unit). Dipakai supaya activity yang
-// sudah pernah dicatat di unit lain model yang sama tapi belum ada di unit ini bisa muncul
-// sebagai baris "belum ada data" — tanpa nulis apa pun sampai user benar-benar isi & simpan.
-function getModelProkerTemplate(code) {
-  const u = fleet.find(x=>x.unitCode===code);
-  const mg = ((u&&u.modelGroup) || (u&&u.model) || '').trim().toLowerCase();
-  if (!mg) return [];
-  const sameModelCodes = new Set(fleet.filter(x=>((x.modelGroup||x.model||'').trim().toLowerCase())===mg).map(x=>x.unitCode));
-  const byKey = new Map();
-  proker.forEach(p => {
-    if (!sameModelCodes.has(p.u)) return;
-    const key = (p.k||'').trim().toLowerCase();
-    if (!key) return;
-    const cur = byKey.get(key);
-    if (!cur) byKey.set(key, { k: p.k, std: p.std!=null ? p.std : null });
-    else if (cur.std == null && p.std != null) cur.std = p.std;
-  });
-  return [...byKey.values()];
-}
-
 function renderHccProkerTab(code, q='', cat='', st='') {
-  const unitHcc    = hcc.filter(r => (r.u||r.unitCode)===code);
-  const unitProker = proker.filter(p => p.u===code);
-  const allRows = buildCombinedRows(unitHcc, unitProker);
-
-  let rows = allRows.filter(r => {
+  const unitHcc = hcc.filter(r => (r.u||r.unitCode)===code);
+  let rows = buildCombinedRows(unitHcc).filter(r => {
     if (cat && r._cat !== cat) return false;
     if (st  && r._st  !== st)  return false;
     if (q   && !(r._desc||'').toLowerCase().includes(q.toLowerCase())) return false;
@@ -2107,14 +1885,8 @@ function renderHccProkerTab(code, q='', cat='', st='') {
     rows = [...rows].sort((a,b) => (rankSt[a._st]??4) - (rankSt[b._st]??4));
   }
 
-  // Activity dari model yang sama yang belum ada datanya di unit ini (khusus Proker) — cuma
-  // tampil kalau tidak lagi filter kategori/status tertentu (nggak relevan buat data kosong).
-  const existingKeys = new Set(unitProker.map(p => (p.k||'').trim().toLowerCase()));
-  let missing = (st || cat) ? [] : getModelProkerTemplate(code).filter(t => !existingKeys.has((t.k||'').trim().toLowerCase()));
-  if (q) missing = missing.filter(t => (t.k||'').toLowerCase().includes(q.toLowerCase()));
-
   const el = document.getElementById('hpBody'); if (!el) return;
-  if (!rows.length && !missing.length) { el.innerHTML='<div class="empty"><p>Tidak ada data HCC/Proker</p></div>'; return; }
+  if (!rows.length) { el.innerHTML='<div class="empty"><p>Tidak ada data HCC</p></div>'; return; }
 
   const thSort = (label, col) => {
     const active = hpSort.col === col;
@@ -2138,8 +1910,6 @@ function renderHccProkerTab(code, q='', cat='', st='') {
       const excChip = r._exc==='BUS' ? `<span class="chip" style="background:rgba(59,130,246,.18);color:#60a5fa;font-size:9px">BUS</span>`
                     : r._exc==='BS'  ? `<span class="chip" style="background:rgba(168,85,247,.18);color:#c084fc;font-size:9px">BS</span>`
                     : '-';
-      const editAttr = r._src==='hcc' ? `data-edit-hcc="${r._id||''}"` : `data-edit-prok="${r._id||''}"`;
-      const delAttr  = r._src==='hcc' ? `data-del-hcc="${r._id||''}"`  : `data-del-prok="${r._id||''}"`;
       const rowStyle = r._st==='done' ? ' style="opacity:.6"' : '';
       return `<tr${rowStyle}>
         <td>${r._cat?`<span class="chip ${r._cat==='MAJOR'?'ch-major':'ch-minor'}">${r._cat}</span>`:'-'}</td>
@@ -2156,131 +1926,13 @@ function renderHccProkerTab(code, q='', cat='', st='') {
         <td title="${r._remark||''}">${r._remark||''}</td>
         <td title="${r._wo||''}">${r._wo||'-'}</td>
         <td><div class="tbl-acts">
-          <button class="btn btn-outline btn-xs edit-action" ${editAttr}>Edit</button>
-          <button class="btn btn-red btn-xs edit-action"     ${delAttr}>Hapus</button>
+          <button class="btn btn-outline btn-xs edit-action" data-edit-hcc="${r._id||''}">Edit</button>
+          <button class="btn btn-red btn-xs edit-action"     data-del-hcc="${r._id||''}">Hapus</button>
         </div></td>
       </tr>`;
-    }).join('')}${missing.map(t => `<tr style="opacity:.45">
-      <td>-</td>
-      <td style="font-style:italic" title="${t.k}">${t.k} <span style="font-size:9px;color:var(--t3);font-style:normal">· belum ada data unit ini</span></td>
-      <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
-      <td style="text-align:center;font-weight:700">${fmtN(t.std)}</td>
-      <td>-</td><td>-</td><td>-</td><td>-</td>
-      <td>-</td>
-      <td><button class="btn btn-gold btn-xs edit-action" data-tpl-add="${code}" data-tpl-desc="${encodeURIComponent(t.k)}" data-tpl-std="${t.std!=null?t.std:''}">+ Isi</button></td>
-    </tr>`).join('')}</tbody></table></div>`;
+    }).join('')}</tbody></table></div>`;
 }
 
-// ── PROKER CRUD ──
-function calcProkLt() {
-  const hm     = parseFloat(document.getElementById('fp-hm').value);
-  const hmInst = parseFloat(document.getElementById('fp-hmInstall').value);
-  const ltEl   = document.getElementById('fp-lt');
-  if (!isNaN(hm) && !isNaN(hmInst)) {
-    ltEl.value = Math.max(0, hm - hmInst).toFixed(1);
-  } else {
-    ltEl.value = '';
-  }
-  calcProkPct();
-}
-
-function calcProkPct() {
-  const lt  = parseFloat(document.getElementById('fp-lt').value);
-  const std = parseFloat(document.getElementById('fp-std').value);
-  const pctEl = document.getElementById('fp-pct');
-  if (!isNaN(lt) && !isNaN(std) && std > 0) {
-    pctEl.value = ((lt / std) * 100).toFixed(1);
-  } else {
-    pctEl.value = '';
-  }
-}
-
-function openProkerAdd(code, prefillDesc, prefillStd) {
-  editProkerId = null;
-  document.getElementById('prokerModalTitle').textContent = 'Tambah Proker — '+code;
-  document.getElementById('fp-unitCode').value   = code;
-  document.getElementById('fp-komponen').value   = prefillDesc || '';
-  document.getElementById('fp-tglInstall').value = '';
-  document.getElementById('fp-hmInstall').value  = '';
-  document.getElementById('fp-hm').value         = hmMap[code]?.hm ? Math.round(hmMap[code].hm) : '';
-  document.getElementById('fp-lt').value         = '';
-  document.getElementById('fp-std').value        = (prefillStd!=null && !isNaN(prefillStd)) ? prefillStd : '';
-  document.getElementById('fp-pct').value        = '';
-  document.getElementById('fp-hrs').value        = '';
-  document.getElementById('fp-status').value     = '';
-  document.getElementById('fp-rem').value        = '';
-  document.getElementById('fp-wo').value         = '';
-  document.getElementById('prokerModal').classList.add('open');
-  if (prefillDesc) notify('Deskripsi & Std LT diisi dari template model — lengkapi Tgl/HM Install lalu simpan', 'ok');
-}
-
-function editProker(pid, code) {
-  const p = proker.find(x=>x._id===pid&&x.u===code); if (!p) { notify('Data tidak ditemukan','err'); return; }
-  editProkerId = pid;
-  document.getElementById('prokerModalTitle').textContent = 'Edit Proker — '+code;
-  document.getElementById('fp-unitCode').value   = code;
-  document.getElementById('fp-komponen').value   = p.k||'';
-  document.getElementById('fp-tglInstall').value = p.tglInstall||'';
-  document.getElementById('fp-hmInstall').value  = p.hmInstall||'';
-  document.getElementById('fp-hm').value         = p.hm||'';
-  document.getElementById('fp-std').value        = p.std||'';
-  document.getElementById('fp-hrs').value        = p.hrs||'';
-  document.getElementById('fp-status').value     = p.st||'';
-  document.getElementById('fp-rem').value        = p.rem||'';
-  document.getElementById('fp-wo').value         = p.wo||'';
-  // Recalc LT from hmInstall if available, else use stored lt
-  if (p.hmInstall && p.hm) {
-    document.getElementById('fp-lt').value = Math.max(0, p.hm - p.hmInstall).toFixed(1);
-  } else {
-    document.getElementById('fp-lt').value = p.lt||'';
-  }
-  calcProkPct();
-  document.getElementById('prokerModal').classList.add('open');
-}
-
-function closeProkerModal() { document.getElementById('prokerModal').classList.remove('open'); }
-
-async function saveProker() {
-  if (guardEdit()) return;
-  const code     = document.getElementById('fp-unitCode').value;
-  const k        = document.getElementById('fp-komponen').value.trim();
-  if (!k) { notify('Deskripsi wajib!','err'); return; }
-  const hm       = parseFloat(document.getElementById('fp-hm').value)||null;
-  const hmInstall= parseFloat(document.getElementById('fp-hmInstall').value)||null;
-  const std      = parseFloat(document.getElementById('fp-std').value)||null;
-  const ltRaw    = parseFloat(document.getElementById('fp-lt').value);
-  const lt       = !isNaN(ltRaw) ? ltRaw : null;
-  const pct      = lt && std ? parseFloat(((lt/std)*100).toFixed(1)) : parseFloat(document.getElementById('fp-pct').value)||0;
-  const hrs      = parseFloat(document.getElementById('fp-hrs').value)||null;
-  // Pertahankan record lama (m, plan, r1d/r1h/r2d/r2h dari data legacy) kalau ini edit —
-  // sebelumnya field-field ini selalu ketimpa null tiap kali proker diedit lewat form.
-  const existing  = editProkerId ? proker.find(p=>p._id===editProkerId&&p.u===code) : null;
-  const unitFleet = fleet.find(x=>x.unitCode===code) || {};
-  const rec = {
-    ...(existing||{}),
-    _id: editProkerId || (code+'_pk_'+Date.now()),
-    u: code, m: (existing&&existing.m) || unitFleet.modelGroup || unitFleet.model || '',
-    k, hm, hmInstall,
-    tglInstall: document.getElementById('fp-tglInstall').value||null,
-    std, lt, pct, hrs,
-    st:  document.getElementById('fp-status').value.trim(),
-    rem: document.getElementById('fp-rem').value.trim(),
-    wo:  document.getElementById('fp-wo').value.trim(),
-  };
-  const prevProker = proker;
-  const isNew = !editProkerId;
-  if (editProkerId) {
-    const idx = proker.findIndex(p=>p._id===editProkerId&&p.u===code);
-    proker = idx>=0 ? proker.map((p,i)=>i===idx?rec:p) : [...proker, rec];
-  } else {
-    proker = [...proker, rec];
-  }
-  const ok = await saveP();
-  if (!ok) { proker = prevProker; return; } // batal, form tetap kebuka biar bisa coba lagi
-  notify(isNew ? 'Proker ditambahkan!' : 'Proker diupdate!', 'ok');
-  closeProkerModal();
-  refreshUnitAfterProkerChange(code);
-}
 // Helper: refresh unit detail while preserving the currently visible tab (info/hcc/proker)
 function refreshUnitPreservingTab(code) {
   if (selUnit !== code) return;
@@ -2294,21 +1946,6 @@ function refreshUnitPreservingTab(code) {
     if (dtabs) dtabs.querySelectorAll('.dtab').forEach(el => el.classList.toggle('active', el.dataset.tab===activeTab));
   }
 }
-// Backward-compat alias
-function refreshUnitAfterProkerChange(code) { refreshUnitPreservingTab(code); }
-
-function delProker(pid, code) {
-  if (guardEdit()) return;
-  showCfm('Hapus Proker?','Hapus record proker ini?', async () => {
-    const prevProker = proker;
-    proker = proker.filter(p=>!(p._id===pid&&p.u===code));
-    const ok = await saveP();
-    if (!ok) { proker = prevProker; return; }
-    refreshUnitAfterProkerChange(code);
-    notify('Proker dihapus','ok');
-  });
-}
-
 // ── UNIT CRUD ──
 function populateModelDatalist() {
   const models = [...new Set(fleet.map(u => u.modelGroup||u.model||'').filter(Boolean))].sort();
@@ -2632,10 +2269,8 @@ async function applyHm(){
   try { localStorage.setItem('adw-hm-cache', JSON.stringify(hmMap)); } catch(e){}
   notify('Menyimpan HM ke server, mohon tunggu...', 'ok');
   try {
-    // hcc gak berubah di flow ini (HM cuma ubah data fleet), jadi cukup fleet + proker,
-    // dikirim BERSAMAAN — bukan gantian nunggu satu-satu
-    const [ok1, ok2] = await Promise.all([saveFleetOnly(), saveP()]);
-    if (ok1 && ok2) {
+    const ok = await saveFleetOnly();
+    if (ok) {
       notify('✓ HM berhasil disimpan ke server!', 'ok');
     } else {
       notify('⚠ Gagal simpan ke server! Cek koneksi dan coba lagi.', 'err');
@@ -2735,8 +2370,8 @@ async function applyManualHm() {
   try { localStorage.setItem('adw-hm-cache', JSON.stringify(hmMap)); } catch(e){}
   notify('Menyimpan HM ke server, mohon tunggu...', 'ok');
   try {
-    const [ok1, ok2] = await Promise.all([saveFleetOnly(), saveP()]);
-    if (ok1 && ok2) notify('✓ HM manual berhasil disimpan ke server!', 'ok');
+    const ok = await saveFleetOnly();
+    if (ok) notify('✓ HM manual berhasil disimpan ke server!', 'ok');
     else notify('⚠ Gagal simpan ke server! Coba lagi.', 'err');
   } catch(e) {
     notify('⚠ Error: ' + e.message, 'err');
@@ -2785,16 +2420,6 @@ function exportUnit(code){
   XLSX.writeFile(wb,`HCC_${code}_${new Date().toISOString().slice(0,10)}.xlsx`);
   notify('Export berhasil!','ok');
 }
-function exportUnitProker(code){
-  const rows=proker.filter(p=>p.u===code);
-  const data=rows.map(p=>({'Unit':p.u,'Komponen':p.k,'HM Update':p.hm,'LT Update':p.lt,'% Usage':p.pct,
-    'Plan Date':fmtDate(p.plan),'Std LT':p.std,'Status':p.st,'Remark':p.rem,
-    '1st Date':fmtDate(p.r1d),'1st HM':p.r1h,'2nd Date':fmtDate(p.r2d),'2nd HM':p.r2h}));
-  const ws=XLSX.utils.json_to_sheet(data),wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'Proker');
-  XLSX.writeFile(wb,`Proker_${code}_${new Date().toISOString().slice(0,10)}.xlsx`);
-  notify('Export berhasil!','ok');
-}
 function exportOverview(){
   const data=fleet.map(u=>({'Unit':u.unitCode,'Model':u.model,'Model Group':u.modelGroup,'Brand':u.brand,
     'Owner':u.owner,'SN Unit':u.snUnit,'Year':u.yearProduct,'Capacity':u.capacity,'UOM':u.uom,
@@ -2806,7 +2431,7 @@ function exportOverview(){
   notify('Export berhasil!','ok');
 }
 
-// Export ALL data (Fleet + HCC + Proker) into one Excel workbook with 3 sheets
+// Export ALL data (Fleet + HCC) into one Excel workbook with 2 sheets
 function exportAllData(){
   const wb = XLSX.utils.book_new();
 
@@ -2849,55 +2474,6 @@ function exportAllData(){
   });
   const wsHcc = XLSX.utils.json_to_sheet(hccData);
   XLSX.utils.book_append_sheet(wb, wsHcc, 'HCC');
-
-  // ── SHEET 3: PROKER (all units, auto-close aware status) ──
-  // Build auto-close map per unit+description group across ALL proker
-  const byUnitDesc = {};
-  proker.forEach(p=>{
-    const key = (p.u||'')+'|'+(p.k||'').trim().toLowerCase();
-    if (!byUnitDesc[key]) byUnitDesc[key]=[];
-    byUnitDesc[key].push(p);
-  });
-  Object.values(byUnitDesc).forEach(grp=>grp.sort((a,b)=>(a.hmInstall||0)-(b.hmInstall||0)));
-  const effHmRemove = {};
-  Object.values(byUnitDesc).forEach(grp=>{
-    for(let i=0;i<grp.length;i++){
-      effHmRemove[grp[i]._id] = i<grp.length-1 ? grp[i+1].hmInstall : null;
-    }
-  });
-  const mo2=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-  const prokerData = proker.map(p=>{
-    const u = fleet.find(x=>x.unitCode===p.u)||{};
-    const hmRemoveNext = effHmRemove[p._id];
-    const isClosed = hmRemoveNext != null;
-    const curHm = hmMap[p.u]?.hm;
-    let ltUpd;
-    if (isClosed && p.hmInstall!=null) ltUpd = Math.max(0, hmRemoveNext - p.hmInstall);
-    else if (!isClosed && p.hmInstall!=null && curHm!=null) ltUpd = Math.max(0, curHm - p.hmInstall);
-    else ltUpd = p.lt;
-    const std = p.std;
-    const hrsLeft = std && ltUpd!=null ? Math.round(std-ltUpd) : null;
-    const isOverdue = !isClosed && std && ltUpd!=null && ltUpd>std;
-    const isCaution = !isClosed && !isOverdue && std && ltUpd!=null && (std-ltUpd)<750;
-    let status='Normal';
-    if (isClosed) status='Done';
-    else if (isOverdue) status='Overdue';
-    else if (isCaution) status='Caution';
-    let planDate='-';
-    if (!isClosed && !isOverdue && hrsLeft!=null && hrsLeft>0) {
-      const avg=p.hrs||18; const d=new Date(); d.setDate(d.getDate()+Math.round(hrsLeft/avg));
-      planDate = `${d.getDate()} ${mo2[d.getMonth()]} ${d.getFullYear()}`;
-    } else if (isOverdue) planDate='Overdue';
-    return {
-      'Unit':p.u,'Model':u.modelGroup||u.model||'','Deskripsi':p.k||'',
-      'HM Update':p.hm,'Std LT':std,'Tgl Install':fmtDate(p.tglInstall),'HM Install':p.hmInstall,
-      'LT Update':ltUpd!=null?Math.round(ltUpd):null,
-      '% Usage':std&&ltUpd!=null?parseFloat(((ltUpd/std)*100).toFixed(1)):(p.pct||0),
-      'Hrs Left':hrsLeft,'Plan Date':planDate,'Status':status,'Sts':p.st||'','Remarks':p.rem||''
-    };
-  });
-  const wsProker = XLSX.utils.json_to_sheet(prokerData);
-  XLSX.utils.book_append_sheet(wb, wsProker, 'Proker');
 
   XLSX.writeFile(wb, `FleetMonitor_ADW_AllData_${new Date().toISOString().slice(0,10)}.xlsx`);
   notify('Export semua data berhasil!','ok');
@@ -2972,7 +2548,7 @@ function toggleDataKomponenMenu() {
 
 function openGlobalData() {
   document.getElementById('gdPage').classList.add('open');
-  document.getElementById('gdActiveTabLabel').textContent = '📋⚙ General Data HCC & Proker';
+  document.getElementById('gdActiveTabLabel').textContent = '📋 General Data HCC';
   document.getElementById('gdStatus').value = '';
   document.getElementById('gdYear').value = '';
   document.getElementById('gdMonth').value = '';
@@ -2987,7 +2563,7 @@ function closeGlobalData() { document.getElementById('gdPage').classList.remove(
 function gdPopulateYears() {
   const yearEl = document.getElementById('gdYear');
   const cur = yearEl.value;
-  const src = [...hcc.map(r => r.dt||r.dateInstalled), ...proker.map(p => p.tglInstall)];
+  const src = hcc.map(r => r.dt||r.dateInstalled);
   const years = [...new Set(src.map(s => {
     const ts = dateSortVal(s);
     return ts==null ? null : new Date(ts).getUTCFullYear();
@@ -3014,14 +2590,13 @@ function gdTypeChange() {
   renderGlobalData();
 }
 
-// Gabungin record HCC + Proker jadi satu bentuk baris yang seragam (kolom & itung-itungan
-// ngikutin gaya HCC): _code,_cat,_desc,_posisi,_tglInstall,_hmInstall,_hmUpdate,_lifetime,
-// _targetLt,_exc,_sisa,_pct,_st (overdue/caution/normal/done),_sts,_remark,_id,_src.
-// Proker gak punya kat/posisi/exc jadi dikosongin. Dipakai bareng oleh General Data (semua
-// unit) & tab per-unit "HCC & Proker" — satu fungsi, satu logika, biar dua-duanya konsisten.
-function buildCombinedRows(hccList, prokerList) {
+// Normalisasi record HCC jadi bentuk baris standar: _code,_cat,_desc,_posisi,_tglInstall,
+// _hmInstall,_hmUpdate,_lifetime,_targetLt,_exc,_sisa,_pct,_st (overdue/caution/normal/done),
+// _sts,_remark,_wo,_id,_src. Dipakai bareng oleh General Data (semua unit) & tab per-unit
+// "HCC" — satu fungsi, satu logika, biar dua-duanya konsisten.
+function buildCombinedRows(hccList) {
   const hccAutoCloseCache = {};
-  const hccRows = hccList.map(r => {
+  return hccList.map(r => {
     const code = r.u||r.unitCode||'';
     const curHm = hmMap[code]?.hm;
     const hi    = r.hi??r.hmInstall;
@@ -3045,31 +2620,6 @@ function buildCombinedRows(hccList, prokerList) {
       _st:st, _sts:r.st||'', _remark:r.rm||r.remark||'', _wo:r.wo||r.woNumber||''
     };
   });
-  const prokerRows = prokerList.map(p => {
-    const key = (p.k||'').trim().toLowerCase();
-    // Auto-close: cari record berikutnya dgn deskripsi sama di UNIT yg sama — selalu pakai
-    // array `proker` global (bukan prokerList yg mungkin sudah difilter) biar deteksinya benar.
-    const sameDesc = proker.filter(x => x.u===p.u && (x.k||'').trim().toLowerCase()===key && x._id!==p._id);
-    const nextRecord = sameDesc.filter(x=>(x.hmInstall||0)>(p.hmInstall||0)).sort((a,b)=>(a.hmInstall||0)-(b.hmInstall||0))[0];
-    const isClosed = !!nextRecord;
-    const curHm = hmMap[p.u]?.hm;
-    let lt;
-    if (isClosed && p.hmInstall!=null && nextRecord.hmInstall!=null) lt = Math.max(0, nextRecord.hmInstall - p.hmInstall);
-    else if (!isClosed && p.hmInstall!=null && curHm!=null) lt = Math.max(0, curHm - p.hmInstall);
-    else lt = p.lt;
-    const sisa = p.std && lt!=null ? p.std-lt : null;
-    const pct  = p.std && lt!=null ? lt/p.std*100 : (p.pct||0);
-    let st = null;
-    if (isClosed) st = 'done';
-    else if (p.std && lt!=null) st = lt>p.std ? 'overdue' : sisa<750 ? 'caution' : 'normal';
-    return {
-      _src:'proker', _id:p._id, _code:p.u||'', _cat:'', _desc:p.k||'',
-      _posisi:'', _tglInstall:p.tglInstall, _hmInstall:p.hmInstall, _hmUpdate:parseFloat(p.hm)||null, _isRun:!isClosed,
-      _lifetime:lt, _targetLt:p.std, _exc:'', _sisa:sisa, _pct:pct,
-      _st:st, _sts:p.st||'', _remark:p.rem||'', _wo:p.wo||''
-    };
-  });
-  return [...hccRows, ...prokerRows];
 }
 
 function renderGlobalData() {
@@ -3127,14 +2677,8 @@ function renderGlobalData() {
     if ((selYear||selMonth) && !matchYM(r.dt||r.dateInstalled)) return false;
     return true;
   });
-  const filteredProker = proker.filter(p => {
-    if (!unitSet.has(p.u||'')) return false;
-    if (q && !(p.k||'').toLowerCase().includes(q) && !(p.u||'').toLowerCase().includes(q)) return false;
-    if ((selYear||selMonth) && !matchYM(p.tglInstall)) return false;
-    return true;
-  });
 
-  const allRows = buildCombinedRows(filteredHcc, filteredProker);
+  const allRows = buildCombinedRows(filteredHcc);
 
   // Count all statuses (before status filter)
   const counts = {overdue:0,caution:0,normal:0,done:0,none:0};
@@ -3227,9 +2771,6 @@ function renderGlobalData() {
 // ── INIT ──
 async function init(){
   await load();
-  let dirty=false;
-  proker.forEach((p,i)=>{if(!p._id){p._id='pk'+i+'_'+Math.random().toString(36).slice(2);dirty=true;}});
-  if(dirty)saveP();
   populateFilterDropdowns();
   applyFilters();
   renderHmBar();
@@ -3238,8 +2779,8 @@ async function init(){
 }
 
 // Modal outside-click
-['unitModal','compModal','prokerModal'].forEach(id=>{
-  document.getElementById(id).addEventListener('click',e=>{if(e.target.id===id){closeUnitModal();closeCompModal();closeProkerModal();}});
+['unitModal','compModal'].forEach(id=>{
+  document.getElementById(id).addEventListener('click',e=>{if(e.target.id===id){closeUnitModal();closeCompModal();}});
 });
 document.getElementById('cfmBg').addEventListener('click',e=>{if(e.target.id==='cfmBg')cfmCancel();});
 
