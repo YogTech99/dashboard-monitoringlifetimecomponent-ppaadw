@@ -1135,6 +1135,13 @@ let fleet=[], proker=[], hcc=[], hmMap={};
 // Nandain per-dataset apakah lagi pakai data live dari server atau jatuh ke snapshot cadangan (*_INIT).
 // Dipakai buat blokir save() supaya snapshot lama nggak pernah ketimpa ke sheet live, dan buat banner peringatan.
 let usingFallback = { fleet:false, hcc:false, proker:false };
+// true kalau backend (Kode.gs) sudah support mode:'upsertRow'/'deleteRow' buat simpan 1
+// baris aja — dicek tiap load() dari respons doGet, BUKAN diasumsikan. Kalau masih false
+// (backend versi lama / belum sempat diupdate), saveHccRow/deleteHccRowById otomatis
+// langsung pakai cara lama (kirim semua data) — TIDAK PERNAH coba mode baru ke backend yang
+// belum siap, karena itu bisa bikin backend lama ngosongin sheet-nya duluan sebelum sempat
+// gagal (clearContents() jalan duluan sebelum baru ketahuan `rows` yang dikirim gak valid).
+let backendSupportsFastSave = false;
 let selModel=null, selUnit=null;
 let editUnitId=null, editCompId=null;
 let hmPrev=null, cfmCb=null;
@@ -1192,14 +1199,17 @@ function hccToRow(r) {
     'Posisi': r.pos || '', 'Tgl Install': r.dt || '', 'HM Install': r.hi != null ? r.hi : '',
     'HM Update': r.hr != null ? r.hr : '', 'Lifetime': r.lt != null ? r.lt : '',
     'Target LT': r.targetLt != null ? r.targetLt : '', 'Sisa (h)': sisa, 'Exc': r.exc || '',
-    'Status': r.st || '', 'Sts': r.st || '', 'Remark': r.rm || '', 'No. WO': r.wo || r.woNumber || ''
+    'Status': r.st || '', 'Sts': r.st || '', 'Remark': r.rm || '', 'No. WO': r.wo || r.woNumber || '',
+    'ID': r.id || ''
   };
 }
 function rowToHcc(row, idx, code) {
   const safeNum = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
   const hr = row['HM Update'];
+  const sheetId = row['ID'];
   return {
-    id: (code || 'unit') + '_' + idx + '_' + Math.random().toString(36).slice(2),
+    id: sheetId || ((code || 'unit') + '_' + idx + '_' + Math.random().toString(36).slice(2)),
+    _idIsNew: !sheetId, // true = ID ini baru dibikin di browser, belum ada di sheet — perlu backfill
     u: row['Unit'] || code, unitCode: row['Unit'] || code,
     cat: row['Kategori'] || 'MINOR', compCategory: row['Kategori'] || 'MINOR',
     desc: row['Deskripsi'] || '', compDesc: row['Deskripsi'] || '',
@@ -1231,6 +1241,30 @@ async function apiPost(sheet, rows) {
     return true;
   } catch (e) {
     console.error('Gagal menyimpan ke sheet ' + sheet + ':', e);
+    return false;
+  }
+}
+
+// Simpan/hapus 1 baris aja lewat mode upsertRow/deleteRow di backend (jauh lebih cepat
+// daripada apiPost yang nulis ulang SEMUA baris) — dipakai buat tambah/edit/hapus 1
+// komponen HCC. Backend versi lama yang belum di-update bakal balikin ok:false dengan
+// error jelas ("belum support upsertRow"), bukan diam-diam gagal.
+async function apiPostRow(sheet, mode, payload) {
+  try {
+    const body = mode === 'deleteRow' ? { sheet, mode, id: payload } : { sheet, mode, row: payload };
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body)
+    });
+    const json = await res.json();
+    if (!json.ok) {
+      console.error(`Server menolak ${mode} ke sheet ${sheet}:`, json.error);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error(`Gagal ${mode} ke sheet ${sheet}:`, e);
     return false;
   }
 }
@@ -1268,6 +1302,7 @@ async function load() {
     const json = await res.json();
     if (!json.ok) throw new Error(json.error || 'Response tidak ok');
     const data = json.data;
+    backendSupportsFastSave = !!(data.backendVersion && data.backendVersion >= 2);
 
     const fleetLive = !!(data.fleet && data.fleet.length);
     fleet = fleetLive ? data.fleet.map(rowToFleet) : FLEET_INIT.map(u=>({...u}));
@@ -1378,6 +1413,46 @@ async function saveHccOnly() {
   try {
     const ok = await apiPost('hcc', hcc.map(hccToRow));
     if (!ok) { notify('Gagal menyimpan data ke server! Coba lagi.', 'err'); return false; }
+    return true;
+  } finally { endSaving(); }
+}
+
+// Simpan 1 komponen HCC aja (tambah baru ATAU edit yang sudah ada, backend yang nentuin
+// berdasarkan ID) — jauh lebih cepat daripada saveHccOnly() yang kirim SEMUA komponen tiap
+// kali. Kalau backend belum di-update (belum support mode upsertRow), otomatis balik pakai
+// cara lama (kirim semua) supaya tetap kesimpen, cuma lebih lambat — bukan gagal diam-diam.
+async function saveHccRow(record) {
+  if (usingFallback.hcc) {
+    notify('⚠️ Data HCC belum berhasil dimuat dari server (masih pakai data cadangan lama) — perubahan TIDAK disimpan, biar data lama gak nimpa data live. Refresh halaman dulu.', 'err');
+    return false;
+  }
+  beginSaving();
+  try {
+    if (backendSupportsFastSave) {
+      const ok = await apiPostRow('hcc', 'upsertRow', hccToRow(record));
+      if (ok) return true;
+      console.warn('upsertRow gagal, fallback ke simpan semua data HCC...');
+    }
+    const okFull = await apiPost('hcc', hcc.map(hccToRow));
+    if (!okFull) { notify('Gagal menyimpan data ke server! Coba lagi.', 'err'); return false; }
+    return true;
+  } finally { endSaving(); }
+}
+
+async function deleteHccRowById(id) {
+  if (usingFallback.hcc) {
+    notify('⚠️ Data HCC belum berhasil dimuat dari server (masih pakai data cadangan lama) — perubahan TIDAK disimpan, biar data lama gak nimpa data live. Refresh halaman dulu.', 'err');
+    return false;
+  }
+  beginSaving();
+  try {
+    if (backendSupportsFastSave) {
+      const ok = await apiPostRow('hcc', 'deleteRow', id);
+      if (ok) return true;
+      console.warn('deleteRow gagal, fallback ke simpan semua data HCC...');
+    }
+    const okFull = await apiPost('hcc', hcc.map(hccToRow));
+    if (!okFull) { notify('Gagal menghapus data di server! Coba lagi.', 'err'); return false; }
     return true;
   } finally { endSaving(); }
 }
@@ -2115,7 +2190,7 @@ async function saveComp() {
   } else {
     hcc = [...hcc, rec];
   }
-  const ok = await saveHccOnly();
+  const ok = await saveHccRow(rec);
   if (!ok) { hcc = prevHcc; return; } // batal, form tetap kebuka biar bisa coba lagi
   notify(isNew ? 'Komponen ditambahkan!' : 'Komponen diupdate!', 'ok');
   closeCompModal();
@@ -2126,7 +2201,7 @@ function delHcc(id, code) {
   showCfm('Hapus Record?','Hapus record komponen ini?', async () => {
     const prevHcc = hcc;
     hcc = hcc.filter(x=>(x.id||'')!==id);
-    const ok = await saveHccOnly();
+    const ok = await deleteHccRowById(id);
     if (!ok) { hcc = prevHcc; return; }
     refreshUnitPreservingTab(code);
     notify('Record dihapus','ok');
@@ -2771,6 +2846,14 @@ function renderGlobalData() {
 // ── INIT ──
 async function init(){
   await load();
+  // Backfill ID buat komponen HCC lama yang belum punya (dari sebelum kolom ID ada) — biar
+  // saveHccRow/deleteHccRowById (mode upsert/delete cepat) bisa nemuin barisnya di sheet.
+  // Sekali doang per unit/komponen: begitu ID kesimpen, _idIsNew gak bakal true lagi.
+  if (!usingFallback.hcc && hcc.some(r => r._idIsNew)) {
+    console.log('Backfill ID untuk komponen HCC lama, sekali aja...');
+    await saveHccOnly();
+    hcc.forEach(r => { r._idIsNew = false; });
+  }
   populateFilterDropdowns();
   applyFilters();
   renderHmBar();
