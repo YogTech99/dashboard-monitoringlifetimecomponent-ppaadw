@@ -2753,7 +2753,7 @@ function renderGlobalData() {
     return true;
   });
 
-  const allRows = buildCombinedRows(filteredHcc);
+  const allRows = buildCombinedRows(filteredHcc).filter(r => r._st !== 'done');
 
   // Count all statuses (before status filter)
   const counts = {overdue:0,caution:0,normal:0,done:0,none:0};
@@ -2793,7 +2793,7 @@ function renderGlobalData() {
   body.innerHTML = `<table class="gd-tbl" style="table-layout:fixed">
     <colgroup>
       <col style="width:34px">  <!-- # -->
-      <col style="width:76px">  <!-- unit -->
+      <col style="width:100px">  <!-- unit -->
       <col style="width:86px">  <!-- model -->
       <col style="width:50px">  <!-- kat -->
       <col style="width:190px"> <!-- deskripsi -->
@@ -2823,7 +2823,7 @@ function renderGlobalData() {
                     : '-';
       return `<tr>
         <td style="color:var(--t3);font-size:10px">${i+1}</td>
-        <td style="overflow:hidden;text-overflow:ellipsis"><span class="unit-link" onclick="closeGlobalData();gotoUnit('${r._code}')">${r._code}</span></td>
+        <td style="white-space:normal"><span class="unit-link" onclick="closeGlobalData();gotoUnit('${r._code}')">${r._code}</span></td>
         <td style="color:var(--t2);overflow:hidden;text-overflow:ellipsis" title="${u.modelGroup||u.model||''}">${u.modelGroup||u.model||''}</td>
         <td>${r._cat?`<span class="chip ${r._cat==='MAJOR'?'ch-major':'ch-minor'}" style="font-size:9px">${r._cat}</span>`:'<span style="color:var(--t3)">-</span>'}</td>
         <td style="overflow:hidden;text-overflow:ellipsis" title="${r._desc||''}">${r._desc||''}</td>
